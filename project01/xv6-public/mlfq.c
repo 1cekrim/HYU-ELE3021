@@ -11,6 +11,7 @@
 #include "proc.h"
 #include "mlfq.h"
 
+
 struct mlfqueue
 {
     struct proc* q[MSIZE];
@@ -18,12 +19,18 @@ struct mlfqueue
     int front;
 };
 
+
 struct
 {
     int quantum[NLEVEL];
     int allotment[NLEVEL - 1];
     struct mlfqueue q[NLEVEL];
 } mlfq;
+
+void mlfqinit();
+int mlfqueuepush(int level, struct proc* p);
+struct proc* mlfqueuetop(int level);
+int mlfqueuepop(int level);
 
 void mlfqinit()
 {
