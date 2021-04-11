@@ -1,3 +1,9 @@
+#define QFAILURE 1
+#define QSUCCESS 0
+#define ISFULLQ (((mlfqueue.rear + 1) % MSIZE) == mlfqueue.front)
+#define ISEMPTYQ (mlfqueue.front == mlfqueue.rear)
+#define MSIZE NPROC
+
 #include "types.h"
 #include "defs.h"
 #include "param.h"
@@ -5,29 +11,44 @@
 #include "proc.h"
 #include "mlfq.h"
 
+
+
 struct
 {
-    struct proc* q[NPROC];
+    struct proc* q[MSIZE];
     int rear;
     int front;
-} lmfqueue;
+} mlfqueue;
 
 void mlfqinit()
 {
-
+    mlfqueue.front = 0;
+    mlfqueue.rear = 0;
 }
 
-int lmfqueuepush(struct proc* p)
+int mlfqueuepush(struct proc* p)
 {
-    return 0;
+    if (ISFULLQ)
+    {
+        return QFAILURE;
+    }
+
+    mlfqueue.q[mlfqueue.rear = (mlfqueue.rear + 1) % MSIZE] = p;
+    
+    return QSUCCESS;
 }
 
-struct proc* lmfqueuetop()
+struct proc* mlfqueuetop()
 {
-    return 0;
+    return ISEMPTYQ ? 0 : mlfqueue.q[mlfqueue.front];
 }
 
-int lmfqueuepop()
+int mlfqueuepop()
 {
-    return 0;
+    if (ISEMPTYQ)
+    {
+        return QFAILURE;
+    }
+    mlfqueue.front = (mlfqueue.front + 1) % MSIZE;
+    return QSUCCESS;
 }
