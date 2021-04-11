@@ -1,6 +1,6 @@
 struct proc;
 
-void lmfqueueinit();
+void mlfqueueinit();
 int mlfqueuepush(struct proc*);
 struct proc* mlfqueuetop();
-int lmfqueuepop();
+int mlfqueuepop();
