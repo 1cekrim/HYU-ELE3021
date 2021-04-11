@@ -1,7 +1,7 @@
 #define QFAILURE 1
 #define QSUCCESS 0
-#define ISFULLQ (((mlfqueue.rear + 1) % MSIZE) == mlfqueue.front)
-#define ISEMPTYQ (mlfqueue.front == mlfqueue.rear)
+    #define ISFULLQ (((mlfq.q[level].rear + 1) % MSIZE) == mlfq.q[level].front)
+    #define ISEMPTYQ (mlfq.q[level].front == mlfq.q[level].rear)
 #define MSIZE NPROC
 
 #include "types.h"
@@ -11,44 +11,52 @@
 #include "proc.h"
 #include "mlfq.h"
 
-
-
-struct
+struct mlfqueue
 {
     struct proc* q[MSIZE];
     int rear;
     int front;
-} mlfqueue;
+};
+
+struct
+{
+    int quantum[NLEVEL];
+    int allotment[NLEVEL - 1];
+    struct mlfqueue q[NLEVEL];
+} mlfq;
 
 void mlfqinit()
 {
-    mlfqueue.front = 0;
-    mlfqueue.rear = 0;
+    for (int i = 0; i < NLEVEL; ++i)
+    {
+        mlfq.q[i].front = 0;
+        mlfq.q[i].rear = 0;
+    }
 }
 
-int mlfqueuepush(struct proc* p)
+int mlfqueuepush(int level, struct proc* p)
 {
     if (ISFULLQ)
     {
         return QFAILURE;
     }
 
-    mlfqueue.q[mlfqueue.rear = (mlfqueue.rear + 1) % MSIZE] = p;
+    mlfq.q[level].q[mlfq.q[level].rear = (mlfq.q[level].rear + 1) % MSIZE] = p;
     
     return QSUCCESS;
 }
 
-struct proc* mlfqueuetop()
+struct proc* mlfqueuetop(int level)
 {
-    return ISEMPTYQ ? 0 : mlfqueue.q[mlfqueue.front];
+    return ISEMPTYQ ? 0 : mlfq.q[level].q[mlfq.q[level].front];
 }
 
-int mlfqueuepop()
+int mlfqueuepop(int level)
 {
     if (ISEMPTYQ)
     {
         return QFAILURE;
     }
-    mlfqueue.front = (mlfqueue.front + 1) % MSIZE;
+    mlfq.q[level].front = (mlfq.q[level].front + 1) % MSIZE;
     return QSUCCESS;
 }
