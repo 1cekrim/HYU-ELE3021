@@ -6,7 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-#include "mlfq.h"
+#include "scheduler.h"
 
 struct {
   struct spinlock lock;
@@ -271,7 +271,6 @@ exit(void)
         wakeup1(initproc);
     }
   }
-  cprintf("exit\n");
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();

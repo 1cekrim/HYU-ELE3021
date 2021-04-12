@@ -1,3 +1,4 @@
+typedef unsigned int uint;
 struct proc;
 
 void mlfqinit();

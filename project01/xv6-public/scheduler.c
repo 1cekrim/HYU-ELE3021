@@ -9,7 +9,7 @@
 #include "param.h"
 #include "mmu.h"
 #include "proc.h"
-#include "mlfq.h"
+#include "scheduler.h"
 
 struct mlfqueue
 {
@@ -113,7 +113,7 @@ int mlfqnext(struct proc* p, uint start, uint end)
         return 1;
     }
 
-    int executiontick = end - start;
+    int executiontick = end - start + 1;
     p->mlfq.executionticks += executiontick;
 
     int level = p->mlfq.level;
