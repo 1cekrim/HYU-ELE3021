@@ -369,40 +369,36 @@ scheduler(void)
       }
     }
 
-    if (!p)
-    {
-      release(&ptable.lock);
-      continue;
-    }
-
-
     // Switch to chosen process.  It is the process's job
     // to release ptable.lock and then reacquire it
     // before jumping back to us.
-    uint start = sys_uptime();
-    c->proc = p;
-    switchuvm(p);
-    p->state = RUNNING;    
-    swtch(&(c->scheduler), p->context);
-    switchkvm();
-    uint end = sys_uptime();
-
-    switch (schedidx)
+    if (p)
     {
-      case SCHEDIDXMLFQ:
-        expired = mlfqnext(p, start, end);
-        break;
+      uint start = sys_uptime();
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;    
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+      uint end = sys_uptime();
 
-      case SCHEDIDXSTRIDE:
-        break;
+      switch (schedidx)
+      {
+        case SCHEDIDXMLFQ:
+          expired = mlfqnext(p, start, end);
+          break;
 
-      default:
-        panic("scheduler: invalid schedidx");
+        case SCHEDIDXSTRIDE:
+          break;
+
+        default:
+          panic("scheduler: invalid schedidx");
+      }
+      
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
     }
-    
-    // Process is done running for now.
-    // It should have changed its p->state before coming back.
-    c->proc = 0;
 
     release(&ptable.lock);
   }

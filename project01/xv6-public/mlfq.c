@@ -113,11 +113,11 @@ int mlfqnext(struct proc* p, uint start, uint end)
         return 1;
     }
 
-    int executiontick = end - start;
+    uint executiontick = end - start;
     p->mlfq.executionticks += executiontick;
 
     int level = p->mlfq.level;
-    int executionticks = p->mlfq.executionticks;
+    uint executionticks = p->mlfq.executionticks;
 
     if (level + 1 < NLEVEL && executionticks >= mlfq.allotment[level])
     {
@@ -175,7 +175,7 @@ struct proc* mlfqtop()
             it = mlfqueuetop(level);
             if (!it)
             {
-                panic("mlfqnext: invalid top");
+                panic("mlfqtop: invalid top");
             }
 
             if (it->state == RUNNABLE)
@@ -184,8 +184,14 @@ struct proc* mlfqtop()
             }
 
             // round robin
-            mlfqueuepop(level);
-            mlfqueuepush(level, it);
+            if (mlfqueuepop(level) == QFAILURE)
+            {
+                panic("mlfqtop: mlfqueuepop failure");
+            }
+            if (mlfqueuepush(level, it) == QFAILURE)
+            {
+                panic("mlfqtop: mlfqueuepush failure");
+            }
         }
     }
 
