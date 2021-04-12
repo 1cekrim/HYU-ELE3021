@@ -183,7 +183,6 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_test_master\
-	_test_mlfqueue\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
