@@ -1,8 +1,6 @@
 #define QFAILURE 1
 #define QSUCCESS 0
-    #define ISFULLQ (((mlfq.q[level].rear + 1) % MSIZE) == mlfq.q[level].front)
-    #define ISEMPTYQ (mlfq.q[level].front == mlfq.q[level].rear)
-#define MSIZE NPROC
+#define MSIZE NPROC + 1
 
 #include "types.h"
 #include "defs.h"
@@ -16,6 +14,8 @@ struct mlfqueue
     struct proc* q[MSIZE];
     int rear;
     int front;
+    int qsize;
+    int capacity;
 };
 
 struct
@@ -26,9 +26,9 @@ struct
     struct mlfqueue q[NLEVEL];
 } mlfq;
 
-int mlfqueuepush(int, struct proc*);
+int mlfqenqueue(int, struct proc*);
 struct proc* mlfqueuetop(int);
-int mlfqueuepop(int);
+int mlfqdequeue(int);
 int mlfqueuesize(int);
 
 void mlfqinit();
@@ -39,9 +39,23 @@ void mlfqboost();
 
 extern int sys_uptime(void);
 
+void mlfqprint()
+{
+    for (int level = 0; level < NLEVEL; ++level)
+    {
+        cprintf("level = %d / %d, %d, %d", level, mlfq.q[level].rear, mlfq.q[level].front, mlfq.q[level].qsize);
+        for (int j = 1; j <= mlfq.q[level].qsize; ++j)
+        {
+            cprintf(" %p(%d)", mlfq.q[level].q[(mlfq.q[level].front + j) % mlfq.q[level].capacity], mlfq.q[level].q[(mlfq.q[level].front + j) % mlfq.q[level].capacity]->mlfq.level);
+        }
+        cprintf("\n");
+    }
+    cprintf("\n");
+}
+
 void mlfqinit()
 {
-    static int quantum[NLEVEL] = { 1, 2, 4 };
+    static int quantum[NLEVEL] = { 2, 2, 4 };
     static int allotment[NLEVEL - 1] = { 5, 10 };
     static int boostingperiod = 100;
 
@@ -49,24 +63,41 @@ void mlfqinit()
     memmove(mlfq.quantum, quantum, NLEVEL);
     memmove(mlfq.allotment, allotment, NLEVEL - 1);
     mlfq.boostingperiod = boostingperiod;
+
+    for (int level = 0; level < NLEVEL; ++level)
+    {
+        mlfq.q[level].front = -1;
+        mlfq.q[level].rear = -1;
+        mlfq.q[level].capacity = MSIZE;
+    }
+}
+
+int mlfqisfull(int level)
+{
+    return mlfq.q[level].qsize == (mlfq.q[level].capacity - 1);
+}
+
+int mlfqisempty(int level)
+{
+    return !mlfq.q[level].qsize;
 }
 
 void mlfqremove(struct proc* p)
 {
     int level = p->mlfq.level;
-    for (int i = 0; i < mlfqueuesize(level) - 1; ++i)
+    for (int i = 0; i < mlfqueuesize(level); ++i)
     {
         struct proc* t = mlfqueuetop(level);
-        if (mlfqueuepop(level) == QFAILURE)
+        if (mlfqdequeue(level) == QFAILURE)
         {
-            panic("mlfqremove: mlfqueuepop failure");
+            panic("mlfqremove: mlfqdequeue failure");
         }
 
         if (t != p)
         {
-            if (mlfqueuepush(level, t) == QFAILURE)
+            if (mlfqenqueue(level, t) == QFAILURE)
             {
-                panic("mlfqremove: mlfqueuepush failure");
+                panic("mlfqremove: mlfqenqueue failure");
             }
         }
     }
@@ -77,19 +108,23 @@ void mlfqboost()
     struct proc* p = 0;
     for (int level = 1; level < NLEVEL; ++level)
     {
-        while ((p = mlfqueuetop(level)))
+        while (!mlfqisempty(level))
         {
-            if (mlfqueuepop(level) == QFAILURE)
+            p = mlfqueuetop(level);
+            if (!p)
             {
-                panic("mlfqboost: mlfqueuepop failure");
+                panic("mlfqboost: mlfqtop failure");
+            }
+            if (mlfqdequeue(level) == QFAILURE)
+            {
+                panic("mlfqboost: mlfqdequeue failure");
             }
 
-            p->mlfq.level = 0;
             p->mlfq.executionticks = 0;
             
-            if (mlfqueuepush(0, p) == QFAILURE)
+            if (mlfqenqueue(0, p) == QFAILURE)
             {
-                panic("mlfqboost: mlfqueuepush failure");
+                panic("mlfqboost: mlfqenqueue failure");
             }
         }
     }
@@ -98,7 +133,7 @@ void mlfqboost()
 int mlfqpush(struct proc* p)
 {
     memset(&p->mlfq, 0, sizeof(p->mlfq));
-    if (mlfqueuepush(0, p) == QFAILURE)
+    if (mlfqenqueue(0, p) == QFAILURE)
     {
         return QFAILURE;
     }
@@ -114,6 +149,7 @@ int mlfqnext(struct proc* p, uint start, uint end)
     }
 
     uint executiontick = end - start;
+    executiontick = executiontick ? executiontick : 1;
     p->mlfq.executionticks += executiontick;
 
     int level = p->mlfq.level;
@@ -121,11 +157,11 @@ int mlfqnext(struct proc* p, uint start, uint end)
 
     if (level + 1 < NLEVEL && executionticks >= mlfq.allotment[level])
     {
-        if (mlfqueuepop(level) == QFAILURE)
+        if (mlfqdequeue(level) == QFAILURE)
         {
             panic("mlfqnext: mlfqpop failure");
         }
-        if (mlfqueuepush(level + 1, p) == QFAILURE)
+        if (mlfqenqueue(level + 1, p) == QFAILURE)
         {
             panic("mlfqnext: mlfqpush failure");
         }
@@ -136,11 +172,11 @@ int mlfqnext(struct proc* p, uint start, uint end)
     int result = executiontick >= mlfq.quantum[level];
     if (result)
     {
-        if (mlfqueuepop(level) == QFAILURE)
+        if (mlfqdequeue(level) == QFAILURE)
         {
             panic("mlfqnext: mlfqpop failure");
         }
-        if (mlfqueuepush(level, p) == QFAILURE)
+        if (mlfqenqueue(level, p) == QFAILURE)
         {
             panic("mlfqnext: mlfqpush failure");
         }
@@ -184,13 +220,13 @@ struct proc* mlfqtop()
             }
 
             // round robin
-            if (mlfqueuepop(level) == QFAILURE)
+            if (mlfqdequeue(level) == QFAILURE)
             {
-                panic("mlfqtop: mlfqueuepop failure");
+                panic("mlfqtop: mlfqdequeue failure");
             }
-            if (mlfqueuepush(level, it) == QFAILURE)
+            if (mlfqenqueue(level, it) == QFAILURE)
             {
-                panic("mlfqtop: mlfqueuepush failure");
+                panic("mlfqtop: mlfqenqueue failure");
             }
         }
     }
@@ -198,15 +234,19 @@ struct proc* mlfqtop()
     return 0;
 }
 
-int mlfqueuepush(int level, struct proc* p)
+int mlfqenqueue(int level, struct proc* p)
 {
-    if (ISFULLQ)
+    if (mlfq.q[level].qsize < 0 || mlfq.q[level].qsize == mlfq.q[level].capacity || mlfq.q[level].rear < -2 || mlfq.q[level].rear >= 65 || mlfq.q[level].front < -2 || mlfq.q[level].front >= 65)
+    {
+        panic("???");
+    }
+    if (mlfqisfull(level))
     {
         return QFAILURE;
     }
-
-    mlfq.q[level].q[mlfq.q[level].rear = (mlfq.q[level].rear + 1) % MSIZE] = p;
-    
+    mlfq.q[level].rear = (mlfq.q[level].rear + 1) % mlfq.q[level].capacity;
+    mlfq.q[level].q[mlfq.q[level].rear] = p;
+    ++mlfq.q[level].qsize;
     p->mlfq.level = level;
 
     return QSUCCESS;
@@ -214,24 +254,25 @@ int mlfqueuepush(int level, struct proc* p)
 
 struct proc* mlfqueuetop(int level)
 {
-    return ISEMPTYQ ? 0 : mlfq.q[level].q[(mlfq.q[level].front + 1) % MSIZE];
+    return mlfqisempty(level) ? 0 : mlfq.q[level].q[(mlfq.q[level].front + 1) % mlfq.q[level].capacity];
 }
 
-int mlfqueuepop(int level)
+int mlfqdequeue(int level)
 {
-    if (ISEMPTYQ)
+    if (mlfq.q[level].qsize < 0 || mlfq.q[level].qsize == mlfq.q[level].capacity || mlfq.q[level].rear < -2 || mlfq.q[level].rear >= 65 || mlfq.q[level].front < -2 || mlfq.q[level].front >= 65)
+    {
+        panic("???");
+    }
+    if (mlfqisempty(level))
     {
         return QFAILURE;
     }
-    mlfq.q[level].front = (mlfq.q[level].front + 1) % MSIZE;
+    mlfq.q[level].front = (mlfq.q[level].front + 1) % mlfq.q[level].capacity;
+    --mlfq.q[level].qsize;
     return QSUCCESS;
 }
 
 int mlfqueuesize(int level)
 {
-    struct mlfqueue* q = &mlfq.q[level];
-    int front = q->front;
-    int rear = q->rear;
-    int v = rear - front;
-    return v >= 0 ? v : (MSIZE + v);
+    return mlfq.q[level].qsize;
 }
