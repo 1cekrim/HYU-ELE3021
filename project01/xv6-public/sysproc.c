@@ -43,6 +43,26 @@ sys_getpid(void)
 }
 
 int
+sys_getlev(void)
+{
+  return myproc()->mlfq.level;
+}
+
+int
+sys_yield(void)
+{
+  yield();
+  return 0;
+}
+
+int
+sys_set_cpu_share(void)
+{
+  // TODO: impl
+  return 0;  
+}
+
+int
 sys_sbrk(void)
 {
   int addr;
