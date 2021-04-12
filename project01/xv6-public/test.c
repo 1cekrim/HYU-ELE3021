@@ -2,11 +2,8 @@
 #include "stat.h"
 #include "user.h"
 
-#define TESTS                                   \
-X("test mlfqueue", "test_mlfqueue", "argv1", "argv2")   \
-X("test mlfqueue2", "test_mlfqueue", "argv1", "argv2")  \
-X("test mlfqueue3", "test_mlfqueue", "argv1", "argv2")  \
-
+#define TESTS \
+    X("fork test", "forktest")
 
 struct test
 {
@@ -43,6 +40,6 @@ int main(int argc, char *arbgv[])
         }
     }
 
-    printf(1, "test master end\n");
+    printf(1, "// test master end //\n");
     exit();
 }
