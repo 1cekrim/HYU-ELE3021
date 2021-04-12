@@ -84,7 +84,6 @@ void mlfqboost()
                 panic("mlfqboost: mlfqueuepop failure");
             }
 
-            p->mlfq.level = 0;
             p->mlfq.executionticks = 0;
             
             if (mlfqueuepush(0, p) == QFAILURE)
