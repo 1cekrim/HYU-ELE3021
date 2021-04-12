@@ -31,6 +31,7 @@ int main(int argc, char *arbgv[])
         if (pid)
         {
             wait();
+            print("[ TEST %s FINISHED ]\n", t->name);
             continue;
         }
         else
