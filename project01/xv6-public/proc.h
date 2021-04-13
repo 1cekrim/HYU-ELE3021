@@ -52,6 +52,7 @@ struct proc {
   struct {
     uint executionticks;
     int level;
+    int yield;
   } mlfq;
 };
 

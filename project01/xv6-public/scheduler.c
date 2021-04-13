@@ -205,8 +205,7 @@ int mlfqnext(struct proc* p, uint start, uint end)
     {
         return 1;
     }
-
-    int executiontick = end - start + 1;
+    int executiontick = end - start + ((p->mlfq.yield) ? 1 : 0);
     p->mlfq.executionticks += executiontick;
 
     int level = p->mlfq.level;
@@ -227,7 +226,7 @@ int mlfqnext(struct proc* p, uint start, uint end)
     }
 
     int result = executiontick >= mlfq.quantum[level];
-    if (result)
+    if (result || p->mlfq.yield || p->state == SLEEPING)
     {
         if (mlfqueuepop(level) == QFAILURE)
         {
@@ -295,6 +294,7 @@ int mlfqueuepush(int level, struct proc* p)
     mlfq.q[level].q[mlfq.q[level].rear = (mlfq.q[level].rear + 1) % MSIZE] = p;
     
     p->mlfq.level = level;
+    p->mlfq.yield = 0;
 
     return QSUCCESS;
 }
