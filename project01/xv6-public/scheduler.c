@@ -37,6 +37,100 @@ struct proc* mlfqtop();
 int mlfqnext();
 void mlfqboost();
 
+int pqparent(int index)
+{
+    return (index - 1) / 2;
+}
+
+int pqleftchild(int index)
+{
+    return 2 * index + 1;
+}
+
+int pqrightchild(int index)
+{
+    return 2 * index + 2;
+}
+
+void pqinit(struct priorityqueue* pq)
+{
+    memset(pq->data, 0, sizeof(pq->data));
+    pq->size = 0;
+    pq->capacity = PQCAPACITY;
+}
+
+struct pqelement pqtop(struct priorityqueue* pq)
+{
+    return pq->data[0];
+}
+
+void pqshiftup(struct priorityqueue* pq, int index)
+{
+    int parent = pqparent(index);
+    while (index > 0 && pq->data[parent].key < pq->data[index].key)
+    {
+        struct pqelement tmp = pq->data[parent];
+        pq->data[parent] = pq->data[index];
+        pq->data[index] = tmp;
+        index = parent;
+    }
+}
+
+void pqshiftdown(struct priorityqueue* pq, int index)
+{
+    int maxidx = index;
+    int left = pqleftchild(index);
+    if (left <= pq->size && pq->data[left].key > pq->data[maxidx].key)
+    {
+        maxidx = left;
+    }
+
+    int right = pqrightchild(index);
+    if (right <= pq->size && pq->data[right].key > pq->data[maxidx].key)
+    {
+        maxidx = right;
+    }
+
+    if (index != maxidx)
+    {
+        struct pqelement tmp = pq->data[maxidx];
+        pq->data[maxidx] = pq->data[index];
+        pq->data[index] = tmp;
+        pqshiftdown(pq, maxidx);
+    }
+}
+
+int pqpush(struct priorityqueue* pq, int key, void* value)
+{
+    if (pq->size >= pq->capacity)
+    {
+        return pq->size;
+    }
+    pq->data[pq->size] = (struct pqelement){key, value};
+    pqshiftup(pq, pq->size);
+    ++pq->size;
+    return 0;
+}
+
+void pqupdatetop(struct priorityqueue* pq, int key, void* value)
+{
+    pq->data[0] = (struct pqelement){key, value};
+    pqshiftdown(pq, 0);
+}
+
+int pqpop(struct priorityqueue* pq)
+{
+    if (pq->size <= 0)
+    {
+        return 1;
+    }
+    pq->data[0] = pq->data[pq->size - 1];
+    --pq->size;
+    pqshiftdown(pq, 0);
+    return 0;
+}
+
+
 extern int sys_uptime(void);
 
 void mlfqinit()
