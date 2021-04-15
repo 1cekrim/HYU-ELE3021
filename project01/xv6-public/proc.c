@@ -351,6 +351,14 @@ scheduler(void)
   c->proc = 0;
   int expired = 1;
   int schedidx = 0;
+
+  struct stridescheduler master;
+  strideinit(&master, 100);
+  stridepush(&master, (void*)0, 20);
+  stridepush(&master, (void*)1, 80);
+
+  struct stridescheduler stride;
+  strideinit(&stride, 80);
   
   for(;;){
     // Enable interrupts on this processor.
@@ -359,6 +367,8 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
+    schedidx = (int)stridetop(&master);
+    stridenext(&master);
 
     if (expired)
     {
@@ -372,7 +382,13 @@ scheduler(void)
             break;
           }
         case SCHEDIDXSTRIDE: // stride
+          p = stridetop(&stride);
+          if (p)
+          {
+            break;
+          }
         default:
+
           break;
           // no process
       }
@@ -398,6 +414,7 @@ scheduler(void)
           break;
 
         case SCHEDIDXSTRIDE:
+          expired = stridenext(&stride);
           break;
 
         default:
@@ -449,6 +466,8 @@ yield(void)
   sched();
   release(&ptable.lock);
 }
+
+
 
 // A fork child's very first scheduling by scheduler()
 // will swtch here.  "Return" to user space.

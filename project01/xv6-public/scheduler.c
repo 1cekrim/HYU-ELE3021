@@ -37,6 +37,9 @@ struct proc* mlfqtop();
 int mlfqnext();
 void mlfqboost();
 
+void strideprint(struct stridescheduler*);
+void pqprint(struct priorityqueue*);
+
 int pqparent(int index)
 {
     return (index - 1) / 2;
@@ -80,13 +83,13 @@ void pqshiftdown(struct priorityqueue* pq, int index)
 {
     int minidx = index;
     int left = pqleftchild(index);
-    if (left <= pq->size && pq->data[left].key < pq->data[minidx].key)
+    if (left < pq->size && pq->data[left].key < pq->data[minidx].key)
     {
         minidx = left;
     }
 
     int right = pqrightchild(index);
-    if (right <= pq->size && pq->data[right].key < pq->data[minidx].key)
+    if (right < pq->size && pq->data[right].key < pq->data[minidx].key)
     {
         minidx = right;
     }
@@ -386,7 +389,7 @@ void strideinit(struct stridescheduler* ss, int maxticket)
     ss->minusage = 0;
     for (int i = 1; i <= maxticket; ++i)
     {
-        ss->stride[i] = 1 / i;
+        ss->stride[i] = (double)1 / i;
     }
 }
 
@@ -417,7 +420,7 @@ void* stridetop(struct stridescheduler* ss)
     return result.value;
 }
 
-int stridenext(struct stridescheduler* ss, uint start, uint end)
+int stridenext(struct stridescheduler* ss)
 {
     struct pqelement result = pqtop(&ss->pq);
     result.key += ss->stride[(int)result.value2];
@@ -448,5 +451,21 @@ int strideremove(struct stridescheduler* ss, void* value)
     pqshiftup(&ss->pq, find);
     pqpop(&ss->pq);
 
+    ss->totalusage += usage;
+
     return usage;
+}
+
+void strideprint(struct stridescheduler* stride)
+{
+    pqprint(&stride->pq);
+}
+
+void pqprint(struct priorityqueue* pq)
+{
+    for (int index = 0; index < pq->size; ++index)
+    {
+        cprintf("%d(%d, %d) ", (int)(pq->data[index].key * 100), pq->data[index].value, pq->data[index].value2);
+    }
+    cprintf("\n");
 }

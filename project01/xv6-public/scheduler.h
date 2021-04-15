@@ -43,5 +43,5 @@ void pqupdatetop(struct priorityqueue*, struct pqelement);
 void strideinit(struct stridescheduler*, int);
 int stridepush(struct stridescheduler*, void*, int);
 void* stridetop(struct stridescheduler*);
-int stridenext(struct stridescheduler*, uint, uint);
+int stridenext(struct stridescheduler*);
 int strideremove(struct stridescheduler*, void*);
