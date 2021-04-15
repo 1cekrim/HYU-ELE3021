@@ -33,6 +33,8 @@ struct context {
 };
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum schedulerenum { SCHEDMLFQ, SCHEDSTRIDE };
+
 
 // Per-process state
 struct proc {
@@ -53,7 +55,8 @@ struct proc {
     uint executionticks;
     int level;
     int yield;
-  } mlfq;
+    enum schedulerenum sched;
+  } schedule;
 };
 
 // Process memory is laid out contiguously, low addresses first:

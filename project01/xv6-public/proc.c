@@ -81,11 +81,11 @@ allocproc(void)
 
   acquire(&ptable.lock);
 
-  int cnt = 0;
+  // int cnt = 0;
   
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
-      ++cnt;
+  // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  //   if(p->state == UNUSED)
+      // ++cnt;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
@@ -341,8 +341,8 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
-#define SCHEDIDXMLFQ 0
-#define SCHEDIDXSTRIDE 1
+extern struct stridescheduler mainstride;
+extern struct stridescheduler masterscheduler;
 void
 scheduler(void)
 {
@@ -352,13 +352,10 @@ scheduler(void)
   int expired = 1;
   int schedidx = 0;
 
-  struct stridescheduler master;
-  strideinit(&master, 100);
-  stridepush(&master, (void*)0, 20);
-  stridepush(&master, (void*)1, 80);
+  strideinit(&masterscheduler, 100);
+  stridepush(&masterscheduler, (void*)SCHEDMLFQ, 100);
 
-  struct stridescheduler stride;
-  strideinit(&stride, 80);
+  strideinit(&mainstride, 80);
   
   for(;;){
     // Enable interrupts on this processor.
@@ -367,22 +364,22 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-    schedidx = (int)stridetop(&master);
-    stridenext(&master);
+    schedidx = (int)stridetop(&masterscheduler);
+    stridenext(&masterscheduler);
 
     if (expired)
     {
       // update schedidx
       switch (schedidx)
       {
-        case SCHEDIDXMLFQ: // mlfq
+        case SCHEDMLFQ: // mlfq
           p = mlfqtop();
           if (p)
           {
             break;
           }
-        case SCHEDIDXSTRIDE: // stride
-          p = stridetop(&stride);
+        case SCHEDSTRIDE: // stride
+          p = stridetop(&mainstride);
           if (p)
           {
             break;
@@ -409,12 +406,12 @@ scheduler(void)
 
       switch (schedidx)
       {
-        case SCHEDIDXMLFQ:
+        case SCHEDMLFQ:
           expired = mlfqnext(p, start, end);
           break;
 
-        case SCHEDIDXSTRIDE:
-          expired = stridenext(&stride);
+        case SCHEDSTRIDE:
+          expired = stridenext(&mainstride);
           break;
 
         default:
@@ -462,7 +459,7 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
-  myproc()->mlfq.yield = 1;
+  myproc()->schedule.yield = 1;
   sched();
   release(&ptable.lock);
 }

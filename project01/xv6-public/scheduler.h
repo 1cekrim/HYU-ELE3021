@@ -33,6 +33,7 @@ struct proc* mlfqtop();
 int mlfqnext(struct proc*, uint, uint);
 void mlfqboost();
 void mlfqremove(struct proc*);
+void schedremoveproc(struct proc* p);
 
 void pqinit(struct priorityqueue*);
 struct pqelement pqtop(struct priorityqueue*);
@@ -45,3 +46,5 @@ int stridepush(struct stridescheduler*, void*, int);
 void* stridetop(struct stridescheduler*);
 int stridenext(struct stridescheduler*);
 int strideremove(struct stridescheduler*, void*);
+
+int set_cpu_share(struct proc* p, int);
