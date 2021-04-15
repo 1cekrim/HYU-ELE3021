@@ -3,7 +3,7 @@
 #include "user.h"
 
 #define TESTS \
-    X("fork test", "forktest")
+    X("test scheduler", "test_scheduler1")
 
 struct test
 {
