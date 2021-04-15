@@ -121,8 +121,6 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-  // cprintf("pid: %d. cnt: %d\n", p->pid, cnt);
-  // mlfqprint();
 
   // mlfq에 p 추가
   // 최대 process 개수 == mlfq level 0의 크기
@@ -356,6 +354,8 @@ scheduler(void)
   stridepush(&masterscheduler, (void*)SCHEDMLFQ, 100);
 
   strideinit(&mainstride, 80);
+  expired = expired || stridenext(&masterscheduler);
+  // int lst[2] = {0, 0};
   
   for(;;){
     // Enable interrupts on this processor.
@@ -364,9 +364,11 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
+
     schedidx = (int)stridetop(&masterscheduler);
     stridenext(&masterscheduler);
-
+    
+    // expired가 true일 때 스케줄러에서 p을 받아옴
     if (expired)
     {
       // update schedidx
@@ -376,14 +378,13 @@ scheduler(void)
           p = mlfqtop();
           if (p)
           {
-            // cprintf("mlfq: %p\n", p);
             break;
           }
         case SCHEDSTRIDE: // stride
           p = stridetop(&mainstride);
           if (p)
           {
-            // cprintf("stride: %p\n", p);
+            schedidx = 1;
             break;
           }
         default:
@@ -398,21 +399,42 @@ scheduler(void)
       // before jumping back to us.
     if (p)
     {
-      uint start = sys_uptime();
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;    
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-      uint end = sys_uptime();
+      uint start = 0;
+      uint end = 0;
 
-      switch (schedidx)
+      if (p->state == RUNNABLE)
+      {
+        start = sys_uptime();
+        c->proc = p;
+        if (p->kstack == 0)
+        {
+          mlfqprint();
+          strideprint(&masterscheduler);
+          strideprint(&mainstride);
+        }
+        switchuvm(p);
+        p->state = RUNNING;    
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+        end = sys_uptime();
+      }
+
+      switch (p->schedule.sched)
       {
         case SCHEDMLFQ:
+          if (p->schedule.sched != SCHEDMLFQ)
+          {
+            cprintf("%p\n", p);
+            panic("???1");
+          }
           expired = mlfqnext(p, start, end);
           break;
 
         case SCHEDSTRIDE:
+          if (p->schedule.sched != SCHEDSTRIDE)
+          {
+            panic("???2");
+          }
           expired = stridenext(&mainstride);
           break;
 
@@ -427,6 +449,8 @@ scheduler(void)
 
     release(&ptable.lock);
   }
+
+  cprintf("scheduler ended");
 }
 
 // Enter scheduler.  Must hold only ptable.lock

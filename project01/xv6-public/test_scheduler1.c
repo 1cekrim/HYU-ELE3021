@@ -12,7 +12,7 @@
 
 #define MLFQ_LEVEL		(3)	/* Number of level(priority) of MLFQ scheduler */
 
-#define WORKLOAD_NUM	(4) /* The number of workloads */
+#define WORKLOAD_NUM	(9) /* The number of workloads */
 
 /**
  * This function requests portion of CPU resources with given parameter
@@ -26,9 +26,10 @@ test_stride(int portion)
 	int i = 0;
 	int start_tick;
 	int curr_tick;
+	int ret;
 
-	if (set_cpu_share(portion) != 0) {
-		printf(1, "FAIL : set_cpu_share\n");
+	if ((ret = set_cpu_share(portion)) != 0) {
+		printf(1, "FAIL : set_cpu_share %d\n", ret);
 		return;
 	}
 
@@ -130,12 +131,16 @@ main(int argc, char *argv[])
 
 	/* Workload list */
 	struct workload workloads[WORKLOAD_NUM] = {
-		/* Process scheduled by Stride scheduler, use 5% of CPU resources */
 		{test_stride, 5},
-		/* Process scheduled by Stride scheduler, use 15% of CPU resources */
+		{test_stride, 5},
+		{test_stride, 5},
+		{test_stride, 10},
 		{test_stride, 15},
+		{test_stride, 20},
+		{test_stride, 20},
+
 		/* Process scheduled by MLFQ scheduler, does not yield itself */
-		{test_mlfq, MLFQ_LEVCNT},
+		{test_mlfq, MLFQ_NONE},
 		/* Process scheduled by MLFQ scheduler, does not yield itself */
 		{test_mlfq, MLFQ_NONE},
 	};

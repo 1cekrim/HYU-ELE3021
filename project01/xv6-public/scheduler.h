@@ -49,3 +49,6 @@ int strideremove(struct stridescheduler*, void*);
 
 int set_cpu_share(struct proc*, int);
 void schedremoveproc(struct proc*);
+
+void mlfqprint();
+void strideprint(struct stridescheduler* stride);
