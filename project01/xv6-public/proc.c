@@ -214,7 +214,7 @@ fork(void)
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
-    mlfqremove(np);
+    schedremoveproc(np);
     return -1;
   }
   np->sz = curproc->sz;
@@ -316,7 +316,7 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
-        mlfqremove(p);
+        schedremoveproc(p);
         release(&ptable.lock);
         return pid;
       }
@@ -376,12 +376,14 @@ scheduler(void)
           p = mlfqtop();
           if (p)
           {
+            // cprintf("mlfq: %p\n", p);
             break;
           }
         case SCHEDSTRIDE: // stride
           p = stridetop(&mainstride);
           if (p)
           {
+            // cprintf("stride: %p\n", p);
             break;
           }
         default:

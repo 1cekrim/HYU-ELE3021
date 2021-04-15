@@ -8,7 +8,7 @@ struct pqelement
 {
     double key;
     void* value;
-    void* value2;
+    int usage;
 };
 
 struct priorityqueue
@@ -47,4 +47,5 @@ void* stridetop(struct stridescheduler*);
 int stridenext(struct stridescheduler*);
 int strideremove(struct stridescheduler*, void*);
 
-int set_cpu_share(struct proc* p, int);
+int set_cpu_share(struct proc*, int);
+void schedremoveproc(struct proc*);
