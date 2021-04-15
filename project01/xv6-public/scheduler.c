@@ -67,7 +67,7 @@ struct pqelement pqtop(struct priorityqueue* pq)
 void pqshiftup(struct priorityqueue* pq, int index)
 {
     int parent = pqparent(index);
-    while (index > 0 && pq->data[parent].key < pq->data[index].key)
+    while (index > 0 && pq->data[parent].key > pq->data[index].key)
     {
         struct pqelement tmp = pq->data[parent];
         pq->data[parent] = pq->data[index];
@@ -78,43 +78,43 @@ void pqshiftup(struct priorityqueue* pq, int index)
 
 void pqshiftdown(struct priorityqueue* pq, int index)
 {
-    int maxidx = index;
+    int minidx = index;
     int left = pqleftchild(index);
-    if (left <= pq->size && pq->data[left].key > pq->data[maxidx].key)
+    if (left <= pq->size && pq->data[left].key < pq->data[minidx].key)
     {
-        maxidx = left;
+        minidx = left;
     }
 
     int right = pqrightchild(index);
-    if (right <= pq->size && pq->data[right].key > pq->data[maxidx].key)
+    if (right <= pq->size && pq->data[right].key < pq->data[minidx].key)
     {
-        maxidx = right;
+        minidx = right;
     }
 
-    if (index != maxidx)
+    if (index != minidx)
     {
-        struct pqelement tmp = pq->data[maxidx];
-        pq->data[maxidx] = pq->data[index];
+        struct pqelement tmp = pq->data[minidx];
+        pq->data[minidx] = pq->data[index];
         pq->data[index] = tmp;
-        pqshiftdown(pq, maxidx);
+        pqshiftdown(pq, minidx);
     }
 }
 
-int pqpush(struct priorityqueue* pq, int key, void* value)
+int pqpush(struct priorityqueue* pq, struct pqelement element)
 {
     if (pq->size >= pq->capacity)
     {
         return pq->size;
     }
-    pq->data[pq->size] = (struct pqelement){key, value};
+    pq->data[pq->size] = element;
     pqshiftup(pq, pq->size);
     ++pq->size;
     return 0;
 }
 
-void pqupdatetop(struct priorityqueue* pq, int key, void* value)
+void pqupdatetop(struct priorityqueue* pq, struct pqelement element)
 {
-    pq->data[0] = (struct pqelement){key, value};
+    pq->data[0] = element;
     pqshiftdown(pq, 0);
 }
 
@@ -321,4 +321,84 @@ int mlfqueuesize(int level)
     int rear = q->rear;
     int v = rear - front;
     return v >= 0 ? v : (MSIZE + v);
+}
+
+void strideinit(struct stridescheduler* ss, int maxticket)
+{
+    if (maxticket > STRIDEMAXTICKET)
+    {
+        panic("strideinit: maxticket > STRIDEMAXTICKET");
+    }
+
+    pqinit(&ss->pq);
+    ss->totalusage = 0;
+    ss->maxticket = maxticket;
+
+    ss->stride[0] = 0;
+    ss->minusage = 0;
+    for (int i = 1; i <= maxticket; ++i)
+    {
+        ss->stride[i] = 1 / i;
+    }
+}
+
+int stridepush(struct stridescheduler* ss, void* value, int usage)
+{
+    if (usage <= 0 || ss->totalusage + usage > ss->maxticket)
+    {
+        return QFAILURE;
+    }
+
+    ss->totalusage -= usage;
+
+    int min = pqtop(&ss->pq).key;
+
+    struct pqelement element;
+    element.key = min + ss->minusage;
+    element.value = value;
+    element.value2 = (void*)usage;
+    
+    pqpush(&ss->pq, element);
+
+    return 0;
+}
+
+void* stridetop(struct stridescheduler* ss)
+{
+    struct pqelement result = pqtop(&ss->pq);
+    return result.value;
+}
+
+int stridenext(struct stridescheduler* ss, uint start, uint end)
+{
+    struct pqelement result = pqtop(&ss->pq);
+    result.key += ss->stride[(int)result.value2];
+    pqupdatetop(&ss->pq, result);
+    return 0;
+}
+
+int strideremove(struct stridescheduler* ss, void* value)
+{
+    int find = -1;
+    for (int index = 0; index < ss->pq.size; ++index)
+    {
+        if (ss->pq.data[index].value == value)
+        {
+            find = index;
+            break;
+        }
+    }
+
+    if (find == -1)
+    {
+        return 0;
+    }
+
+    int usage = (int)ss->pq.data[find].value2;
+    ss->pq.data[find].key = ss->pq.data[0].key - 1;
+
+    pqshiftup(&ss->pq, find);
+    pqpop(&ss->pq);
+
+    return usage;
 }

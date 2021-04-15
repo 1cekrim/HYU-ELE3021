@@ -1,19 +1,14 @@
 typedef unsigned int uint;
 struct proc;
 
-void mlfqinit();
-int mlfqpush(struct proc*);
-struct proc* mlfqtop();
-int mlfqnext(struct proc*, uint, uint);
-void mlfqboost();
-void mlfqremove(struct proc*);
-
 #define PQCAPACITY NPROC
+#define STRIDEMAXTICKET 100
 
 struct pqelement
 {
-    int key;
+    double key;
     void* value;
+    void* value2;
 };
 
 struct priorityqueue
@@ -25,11 +20,28 @@ struct priorityqueue
 
 struct stridescheduler
 {
-
+    struct priorityqueue pq;
+    int totalusage;
+    int maxticket;
+    int minusage;
+    double stride[STRIDEMAXTICKET + 1];
 };
+
+void mlfqinit();
+int mlfqpush(struct proc*);
+struct proc* mlfqtop();
+int mlfqnext(struct proc*, uint, uint);
+void mlfqboost();
+void mlfqremove(struct proc*);
 
 void pqinit(struct priorityqueue*);
 struct pqelement pqtop(struct priorityqueue*);
-int pqpush(struct priorityqueue*, int key, void* value);
+int pqpush(struct priorityqueue*, struct pqelement);
 int pqpop(struct priorityqueue*);
-void pqupdatetop(struct priorityqueue*, int key, void* value);
+void pqupdatetop(struct priorityqueue*, struct pqelement);
+
+void strideinit(struct stridescheduler*, int);
+int stridepush(struct stridescheduler*, void*, int);
+void* stridetop(struct stridescheduler*);
+int stridenext(struct stridescheduler*, uint, uint);
+int strideremove(struct stridescheduler*, void*);
