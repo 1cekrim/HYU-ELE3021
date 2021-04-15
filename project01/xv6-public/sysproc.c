@@ -58,7 +58,10 @@ sys_yield(void)
 int
 sys_set_cpu_share(void)
 {
-  // TODO: impl
+  int usage;
+
+  if(argint(0, &usage) < 0)
+    return -1;
   return 0;  
 }
 
