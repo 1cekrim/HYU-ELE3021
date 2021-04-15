@@ -349,7 +349,6 @@ scheduler(void)
   c->proc = 0;
   int expired = 1;
   int schedidx = 0;
-  int cnt = 0;
 
   strideinit(&masterscheduler, 100);
   stridepush(&masterscheduler, (void*)SCHEDMLFQ, 100);
@@ -400,18 +399,16 @@ scheduler(void)
       uint start = 0;
       uint end = 0;
 
-      start = sys_uptime();
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;    
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-      end = sys_uptime();
-      if (cnt % 100 == 0)
+      if (p->state == RUNNABLE)
       {
-        mlfqprint();
+        start = sys_uptime();
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;    
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+        end = sys_uptime();
       }
-      cnt = cnt + 1;
 
       switch (p->schedule.sched)
       {
