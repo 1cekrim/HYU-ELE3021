@@ -355,7 +355,7 @@ scheduler(void)
 
   strideinit(&mainstride, 80);
   expired = expired || stridenext(&masterscheduler);
-  
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -386,7 +386,6 @@ scheduler(void)
             break;
           }
         default:
-
           break;
           // no process
       }

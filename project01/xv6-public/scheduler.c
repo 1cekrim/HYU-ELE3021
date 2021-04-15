@@ -575,29 +575,68 @@ int stridepush(struct stridescheduler* ss, void* value, int usage)
         ss->minusage = usage;
     }
 
-    int min = pqtop(&ss->pq).key;
+    int min = ss->pq.size ? pqtop(&ss->pq).key : 0;
 
     struct pqelement element;
-    element.key = min + ss->minusage;
+    element.key = min + ss->stride[ss->minusage];
     element.value = value;
     element.usage = usage;
     
     pqpush(&ss->pq, element);
+
+    // strideprint(ss);
 
     return 0;
 }
 
 void* stridetop(struct stridescheduler* ss)
 {
-    struct pqelement result = pqtop(&ss->pq);
-    return result.value;
+    if (ss == &masterscheduler)
+    {
+        struct pqelement result = pqtop(&ss->pq);
+        return result.value;
+    }
+    else
+    {
+        // 임시 코드
+        if (!ss->pq.size)
+        {
+            return 0;
+        }
+
+        int minidx = -1;
+        double minvalue = ss->pq.data[ss->pq.size - 1].key;
+
+        for (int i = 0; i < ss->pq.size; ++i)
+        {
+            if (ss->pq.data[i].key <= minvalue && ((struct proc*)ss->pq.data[i].value)->state == RUNNABLE)
+            {
+                minvalue = ss->pq.data[i].key;
+                minidx = i;
+            }
+        }
+        if (minidx == -1)
+        {
+            return 0;
+        }
+
+        struct proc* result = ss->pq.data[minidx].value;
+        ss->pq.data[minidx].key += ss->stride[(int)ss->pq.data[minidx].usage];
+        pqshiftdown(&ss->pq, minidx);
+
+        return result;
+    }
 }
 
 int stridenext(struct stridescheduler* ss)
 {
-    struct pqelement result = pqtop(&ss->pq);
-    result.key += ss->stride[(int)result.usage];
-    pqupdatetop(&ss->pq, result);
+    if (ss == &masterscheduler)
+    {
+        struct pqelement result = pqtop(&ss->pq);
+        result.key += ss->stride[(int)result.usage];
+        pqupdatetop(&ss->pq, result);
+        return 1;
+    }
     return 1;
 }
 
@@ -710,6 +749,7 @@ int strideremove(struct stridescheduler* ss, void* value)
 void strideprint(struct stridescheduler* stride)
 {
     cprintf("[%s]\n", ((stride == &masterscheduler) ? "master" : "stride"));
+    cprintf("maxticket: %d\nminusage: %d\ntotalusage: %d\n", stride->maxticket, stride->minusage, stride->totalusage);
     pqprint(&stride->pq);
     cprintf("\n");
 }
