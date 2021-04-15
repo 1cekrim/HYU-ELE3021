@@ -81,6 +81,12 @@ allocproc(void)
 
   acquire(&ptable.lock);
 
+  int cnt = 0;
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->state == UNUSED)
+      ++cnt;
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
@@ -91,14 +97,6 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
-  // mlfq에 p 추가
-  // 최대 process 개수 == mlfq level 0의 크기
-  // 따라서 mlfqpush가 실패하면 logic error
-  if (mlfqpush(p))
-  {
-    panic("allocproc: mlfqpush failure");
-  }
 
   release(&ptable.lock);
 
@@ -122,6 +120,17 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+
+  // cprintf("pid: %d. cnt: %d\n", p->pid, cnt);
+  // mlfqprint();
+
+  // mlfq에 p 추가
+  // 최대 process 개수 == mlfq level 0의 크기
+  // 따라서 mlfqpush가 실패하면 logic error
+  if (mlfqpush(p))
+  {
+    panic("allocproc: mlfqpush failure");
+  }
 
   return p;
 }
@@ -205,6 +214,7 @@ fork(void)
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
+    mlfqremove(np);
     return -1;
   }
   np->sz = curproc->sz;
@@ -297,7 +307,6 @@ wait(void)
       if(p->state == ZOMBIE){
         //TODO: mlfq에서 process 제거
         // Found one.
-        mlfqremove(p);
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
@@ -307,6 +316,7 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+        mlfqremove(p);
         release(&ptable.lock);
         return pid;
       }
@@ -368,40 +378,36 @@ scheduler(void)
       }
     }
 
-    if (!p)
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+    if (p)
     {
-      release(&ptable.lock);
-      continue;
+      uint start = sys_uptime();
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;    
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+      uint end = sys_uptime();
+
+      switch (schedidx)
+      {
+        case SCHEDIDXMLFQ:
+          expired = mlfqnext(p, start, end);
+          break;
+
+        case SCHEDIDXSTRIDE:
+          break;
+
+        default:
+          panic("scheduler: invalid schedidx");
+      }
+      
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
     }
-
-
-    // Switch to chosen process.  It is the process's job
-    // to release ptable.lock and then reacquire it
-    // before jumping back to us.
-    uint start = sys_uptime();
-    c->proc = p;
-    switchuvm(p);
-    p->state = RUNNING;    
-    swtch(&(c->scheduler), p->context);
-    switchkvm();
-    uint end = sys_uptime();
-
-    switch (schedidx)
-    {
-      case SCHEDIDXMLFQ:
-        expired = mlfqnext(p, start, end);
-        break;
-
-      case SCHEDIDXSTRIDE:
-        break;
-
-      default:
-        panic("scheduler: invalid schedidx");
-    }
-    
-    // Process is done running for now.
-    // It should have changed its p->state before coming back.
-    c->proc = 0;
 
     release(&ptable.lock);
   }
