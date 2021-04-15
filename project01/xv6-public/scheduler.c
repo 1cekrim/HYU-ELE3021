@@ -262,8 +262,8 @@ int mlfqnext(struct proc* p, uint start, uint end)
         return 1;
     }
 
-    int result = executiontick >= mlfq.quantum[level];
-    if (result || p->mlfq.yield || p->state == SLEEPING)
+    int result = (executiontick >= mlfq.quantum[level]) || p->mlfq.yield || p->state == SLEEPING;
+    if (result)
     {
         if (mlfqdequeue(level) == QFAILURE)
         {
