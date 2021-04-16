@@ -12,7 +12,7 @@
 
 #define MLFQ_LEVEL		(3)	/* Number of level(priority) of MLFQ scheduler */
 
-#define WORKLOAD_NUM	(10) /* The number of workloads */
+#define WORKLOAD_NUM	(12) /* The number of workloads */
 
 /**
  * This function requests portion of CPU resources with given parameter
@@ -53,7 +53,7 @@ test_stride(int portion)
 	}
 
 	/* Report */
-	printf(1, "STRIDE(%d%%), cnt : %d\n", portion, cnt);
+	printf(1, "STRIDE(%d%%, %d), cnt : %d\n", portion, getpid(), cnt);
 
 	return;
 }
@@ -111,8 +111,8 @@ test_mlfq(int type)
 		printf(1, "MLfQ(%s), cnt : %d, lev[0] : %d, lev[1] : %d, lev[2] : %d\n",
 				type == MLFQ_LEVCNT ? "compute" : "yield", cnt, cnt_level[0], cnt_level[1], cnt_level[2]);
 	} else {
-		printf(1, "MLfQ(%s), cnt : %d\n",
-				type == MLFQ_NONE ? "compute" : "yield", cnt);
+		printf(1, "MLfQ(%s, %d), cnt : %d\n",
+				type == MLFQ_NONE ? "compute" : "yield", getpid(), cnt);
 	}
 
 	return;
@@ -131,22 +131,26 @@ main(int argc, char *argv[])
  
 	/* Workload list */
 	struct workload workloads[WORKLOAD_NUM] = {
-		{test_stride, 5},
-		{test_stride, 5},
-		{test_stride, 5},
-		{test_stride, 10},
-		{test_stride, 15},
-		{test_stride, 20},
-		{test_stride, 20},
+		// {test_stride, 5},
+		// {test_stride, 5},
+		// {test_stride, 5},
+		// {test_stride, 20},
+		{test_mlfq, MLFQ_NONE},
+		{test_mlfq, MLFQ_NONE},
+		{test_mlfq, MLFQ_NONE},
+		{test_mlfq, MLFQ_NONE},
+		{test_mlfq, MLFQ_NONE},
+		{test_mlfq, MLFQ_NONE},
+		{test_mlfq, MLFQ_NONE},
+		{test_mlfq, MLFQ_NONE},
+		// {test_stride, 10},
+		// {test_stride, 15},
+		// {test_stride, 20},
 
 		{test_mlfq, MLFQ_NONE},
 		{test_mlfq, MLFQ_NONE},
 		{test_mlfq, MLFQ_NONE},
-		// {test_mlfq, MLFQ_NONE},
-		// {test_mlfq, MLFQ_NONE},
-		// {test_mlfq, MLFQ_NONE},
-		// {test_mlfq, MLFQ_NONE},
-		// {test_mlfq, MLFQ_NONE},
+		{test_mlfq, MLFQ_NONE},
 	};
 
 	for (i = 0; i < WORKLOAD_NUM; i++) {

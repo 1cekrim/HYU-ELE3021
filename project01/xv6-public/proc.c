@@ -212,7 +212,7 @@ fork(void)
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
-    schedremoveproc(np);
+    // schedremoveproc(np);
     return -1;
   }
   np->sz = curproc->sz;
@@ -314,7 +314,7 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
-        schedremoveproc(p);
+        // schedremoveproc(p);
         release(&ptable.lock);
         return pid;
       }
@@ -344,92 +344,138 @@ extern struct stridescheduler masterscheduler;
 void
 scheduler(void)
 {
-  struct proc *p = 0;
+    struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  int expired = 1;
-  int schedidx = 0;
-
-  strideinit(&masterscheduler, 100);
-  stridepush(&masterscheduler, (void*)SCHEDMLFQ, 100);
-
-  strideinit(&mainstride, 80);
-  expired = expired || stridenext(&masterscheduler);
-
+  
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+        continue;
 
-    schedidx = (int)stridetop(&masterscheduler);
-    stridenext(&masterscheduler);
-    
-    // expired가 true일 때 스케줄러에서 p을 받아옴
-    if (expired || p->state != RUNNABLE)
-    {
-      // update schedidx
-      switch (schedidx)
-      {
-        case SCHEDMLFQ: // mlfq
-          p = mlfqtop();
-          if (p)
-          {
-            break;
-          }
-        case SCHEDSTRIDE: // stride
-          p = stridetop(&mainstride);
-          if (p)
-          {
-            schedidx = 1;
-            break;
-          }
-        default:
-          break;
-          // no process
-      }
-    }
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-    if (p)
-    {
-      uint start = 0;
-      uint end = 0;
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
 
-      if (p->state == RUNNABLE)
-      {
-        start = sys_uptime();
-        c->proc = p;
-        switchuvm(p);
-        p->state = RUNNING;    
-        swtch(&(c->scheduler), p->context);
-        switchkvm();
-        end = sys_uptime();
-      }
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
 
-      switch (p->schedule.sched)
-      {
-        case SCHEDMLFQ:
-          expired = mlfqnext(p, start, end);
-          break;
-
-        case SCHEDSTRIDE:
-          expired = stridenext(&mainstride);
-          break;
-
-        default:
-          panic("scheduler: invalid schedidx");
-      }
-      
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-
     release(&ptable.lock);
+
   }
+
+
+
+  // struct proc *p = 0;
+  // struct cpu *c = mycpu();
+  // c->proc = 0;
+  // int expired = 1;
+  // int schedidx = 0;
+
+  // int arr[64] = {0,};
+
+  // strideinit(&masterscheduler, 100);
+  // stridepush(&masterscheduler, (void*)SCHEDMLFQ, 100);
+
+  // strideinit(&mainstride, 80);
+  // expired = expired || stridenext(&masterscheduler);
+
+  // for(;;){
+  //   // Enable interrupts on this processor.
+  //   sti();
+
+  //   // Loop over process table looking for process to run.
+  //   acquire(&ptable.lock);
+
+  //   schedidx = (int)stridetop(&masterscheduler);
+  //   stridenext(&masterscheduler);
+    
+  //   // expired가 true일 때 스케줄러에서 p을 받아옴
+  //   if (expired || p->state != RUNNABLE)
+  //   {
+  //     // update schedidx
+  //     switch (schedidx)
+  //     {
+  //       case SCHEDMLFQ: // mlfq
+  //         p = mlfqtop();
+  //         if (p)
+  //         {
+  //           break;
+  //         }
+  //       case SCHEDSTRIDE: // stride
+  //         p = stridetop(&mainstride);
+  //         if (p)
+  //         {
+  //           schedidx = 1;
+  //           break;
+  //         }
+  //       default:
+  //         break;
+  //         // no process
+  //     }
+  //   }
+  //     // Switch to chosen process.  It is the process's job
+  //     // to release ptable.lock and then reacquire it
+  //     // before jumping back to us.
+  //   if (p)
+  //   {
+  //     uint start = 0;
+  //     uint end = 0;
+
+  //     if (p->state == RUNNABLE)
+  //     {
+  //       ++arr[p->pid];
+  //       start = sys_uptime();
+  //       c->proc = p;
+  //       switchuvm(p);
+  //       p->state = RUNNING;    
+  //       swtch(&(c->scheduler), p->context);
+  //       switchkvm();
+  //       end = sys_uptime();
+  //     }
+
+  //     if (p->pid == 17)
+  //     {
+  //       for (int i = 0; i < 16; ++i)
+  //       {
+  //         cprintf("%d ", arr[i]);
+  //       }
+  //       panic("");
+  //     }
+
+  //     switch (p->schedule.sched)
+  //     {
+  //       case SCHEDMLFQ:
+  //         expired = mlfqnext(p, start, end);
+  //         break;
+
+  //       case SCHEDSTRIDE:
+  //         expired = stridenext(&mainstride);
+  //         break;
+
+  //       default:
+  //         panic("scheduler: invalid schedidx");
+  //     }
+      
+  //     // Process is done running for now.
+  //     // It should have changed its p->state before coming back.
+  //     c->proc = 0;
+  //   }
+
+  //   release(&ptable.lock);
+  // }
 }
 
 // Enter scheduler.  Must hold only ptable.lock
