@@ -212,7 +212,7 @@ fork(void)
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
-    // schedremoveproc(np);
+    schedremoveproc(np);
     return -1;
   }
   np->sz = curproc->sz;

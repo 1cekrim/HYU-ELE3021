@@ -15,50 +15,6 @@
 #define WORKLOAD_NUM	(12) /* The number of workloads */
 
 /**
- * This function requests portion of CPU resources with given parameter
- * value by calling set_cpu_share() system call.
- * It reports the cnt value which have been accumulated during LIFETIME.
- */
-void
-test_stride(int portion)
-{
-	int cnt = 0;
-	int i = 0;
-	int start_tick;
-	int curr_tick;
-	int ret;
-
-	if ((ret = set_cpu_share(portion)) != 0) {
-		printf(1, "FAIL : set_cpu_share %d\n", ret);
-		return;
-	}
-
-	/* Get start tick */
-	start_tick = uptime();
-
-	for (;;) {
-		i++;
-		if (i >= COUNT_PERIOD) {
-			cnt++;
-			i = 0;
-
-			/* Get current tick */
-			curr_tick = uptime();
-
-			if (curr_tick - start_tick > LIFETIME) {
-				/* Time to terminate */
-				break;
-			}
-		}
-	}
-
-	/* Report */
-	printf(1, "STRIDE(%d%%, %d), cnt : %d\n", portion, getpid(), cnt);
-
-	return;
-}
-
-/**
  * This function request to make this process scheduled in MLFQ. 
  * MLFQ_NONE			: report only the cnt value
  * MLFQ_LEVCNT			: report the cnt values about each level
@@ -69,10 +25,8 @@ enum { MLFQ_NONE, MLFQ_LEVCNT, MLFQ_YIELD, MLFQ_LEVCNT_YIELD };
 void
 test_mlfq(int type)
 {
-	int cnt_level[MLFQ_LEVEL] = {0, 0, 0};
 	int cnt = 0;
 	int i = 0;
-	int curr_mlfq_level;
 	int start_tick;
 	int curr_tick;
 
@@ -84,12 +38,6 @@ test_mlfq(int type)
 		if (i >= COUNT_PERIOD) {
 			cnt++;
 			i = 0;
-
-			if (type == MLFQ_LEVCNT || type == MLFQ_LEVCNT_YIELD ) {
-				/* Count per level */
-				curr_mlfq_level = getlev(); /* getlev : system call */
-				cnt_level[curr_mlfq_level]++;
-			}
 
 			/* Get current tick */
 			curr_tick = uptime();
@@ -101,19 +49,14 @@ test_mlfq(int type)
 
 			if (type == MLFQ_YIELD || type == MLFQ_LEVCNT_YIELD) {
 				/* Yield process itself, not by timer interrupt */
-				yield();
 			}
 		}
 	}
 
-	/* Report */
-	if (type == MLFQ_LEVCNT || type == MLFQ_LEVCNT_YIELD ) {
-		printf(1, "MLfQ(%s), cnt : %d, lev[0] : %d, lev[1] : %d, lev[2] : %d\n",
-				type == MLFQ_LEVCNT ? "compute" : "yield", cnt, cnt_level[0], cnt_level[1], cnt_level[2]);
-	} else {
+
 		printf(1, "MLfQ(%s, %d), cnt : %d\n",
 				type == MLFQ_NONE ? "compute" : "yield", getpid(), cnt);
-	}
+
 
 	return;
 }
