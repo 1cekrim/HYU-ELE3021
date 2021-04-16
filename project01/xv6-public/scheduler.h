@@ -1,3 +1,5 @@
+#include "spinlock.h"
+
 typedef unsigned int uint;
 struct proc;
 
@@ -25,6 +27,7 @@ struct stridescheduler
     int maxticket;
     int minusage;
     double stride[STRIDEMAXTICKET + 1];
+    struct spinlock lock;
 };
 
 void mlfqinit();

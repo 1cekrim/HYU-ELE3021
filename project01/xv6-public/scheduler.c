@@ -217,14 +217,14 @@ void mlfqremove(struct proc* p)
         struct proc* t = mlfqueuetop(level);
         if (mlfqdequeue(level) == QFAILURE)
         {
-            panic("mlfqremove: mlfqdequeue failure");
+            RAISEPANIC("mlfqremove: mlfqdequeue failure");
         }
 
         if (t != p)
         {
             if (mlfqenqueue(level, t) == QFAILURE)
             {
-                panic("mlfqremove: mlfqenqueue failure");
+                RAISEPANIC("mlfqremove: mlfqenqueue failure");
             }
         }
         else
@@ -237,7 +237,7 @@ void mlfqremove(struct proc* p)
     {
         cprintf("p: %p\n", p);
         mlfqprint();
-        panic("mlfqremove: no proc");
+        RAISEPANIC("mlfqremove: no proc");
     }
 }
 
@@ -258,7 +258,7 @@ void schedremoveproc(struct proc* p)
             int usage = strideremove(&mainstride, p);
             if (usage == -1)
             {
-                panic("schedremoveproc: usage == -1");
+                RAISEPANIC("schedremoveproc: usage == -1");
             }
             
             int mlfqidx = stridefindindex(&masterscheduler, (void*)SCHEDMLFQ);
@@ -278,25 +278,26 @@ void schedremoveproc(struct proc* p)
 
             if (newmlfqusage + newstrideusage != masterscheduler.maxticket || newmlfqusage < 20 || newstrideusage < 0)
             {
-                panic("schedremoveproc: invalid usage rate");
+                RAISEPANIC("schedremoveproc: invalid usage rate");
             }
 
             if (newstrideusage)
             {
+                cprintf("286 strideidx: %d, mlfqidx: %d\n", strideidx, mlfqidx);
                 if (stridechangeusage(&masterscheduler, strideidx, newstrideusage))
                 {
-                    panic("schedremoveproc: strideidx change failure");
+                    RAISEPANIC("schedremoveproc: strideidx change failure");
                 }
                 if(stridechangeusage(&masterscheduler, mlfqidx, newmlfqusage))
                 {
-                    panic("schedremoveproc: mlfqidx change failure");
+                    RAISEPANIC("schedremoveproc: mlfqidx change failure");
                 }
             }
             else
             {
                 if (strideremove(&masterscheduler, masterscheduler.pq.data[strideidx].value) == -1)
                 {
-                    panic("schedremoveproc: strideremove stridescheduler failure");
+                    RAISEPANIC("schedremoveproc: strideremove stridescheduler failure");
                 }
                 stridechangeusage(&masterscheduler, 0, 100);
             }
@@ -305,7 +306,7 @@ void schedremoveproc(struct proc* p)
             break;
         }
         default:
-            panic("schedremoveproc: invalid sched");
+            RAISEPANIC("schedremoveproc: invalid sched");
     }
 }
 
@@ -320,12 +321,12 @@ void mlfqboost()
             if (!p)
             {
                 mlfqprint();
-                panic("mlfqboost: mlfqtop failure");
+                RAISEPANIC("mlfqboost: mlfqtop failure");
             }
             if (mlfqdequeue(level) == QFAILURE)
             {
                 mlfqprint();
-                panic("mlfqboost: mlfqdequeue failure");
+                RAISEPANIC("mlfqboost: mlfqdequeue failure");
             }
 
             p->schedule.executionticks = 0;
@@ -333,7 +334,7 @@ void mlfqboost()
             if (mlfqenqueue(0, p) == QFAILURE)
             {
                 mlfqprint();
-                panic("mlfqboost: mlfqenqueue failure");
+                RAISEPANIC("mlfqboost: mlfqenqueue failure");
             }
         }
     }
@@ -365,13 +366,13 @@ int mlfqrotatetotarget(int level, struct proc* p)
         {
             cprintf("p: %p\n", top);
             mlfqprint();
-            panic("mlfqrotate: mlfqdequeue failure");
+            RAISEPANIC("mlfqrotate: mlfqdequeue failure");
         }
         if (mlfqenqueue(level, top) == QFAILURE)
         {
             cprintf("p: %p\n", top);
             mlfqprint();
-            panic("mlfqrotate: mlfqenqueue failure");
+            RAISEPANIC("mlfqrotate: mlfqenqueue failure");
         }
     }
     return QFAILURE;
@@ -395,15 +396,21 @@ int mlfqnext(struct proc* p, uint start, uint end)
     {
         if (mlfqrotatetotarget(level, p) == QFAILURE)
         {
-            panic("mlfqnext1: rotate failure");
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            RAISEPANIC("mlfqnext1: rotate failure");
         }
         if (mlfqdequeue(level) == QFAILURE)
         {
-            panic("mlfqnext1: mlfqpop failure");
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            RAISEPANIC("mlfqnext1: mlfqpop failure");
         }
         if (mlfqenqueue(level + 1, p) == QFAILURE)
         {
-            panic("mlfqnext1: mlfqpush failure");
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            RAISEPANIC("mlfqnext1: mlfqpush failure");
         }
         return 1;
     }
@@ -413,21 +420,21 @@ int mlfqnext(struct proc* p, uint start, uint end)
     {
         if (mlfqrotatetotarget(level, p) == QFAILURE)
         {
-            panic("mlfqnext2: rotate failure");
-        }
-        if (mlfq.q[level].q[(mlfq.q[level].front + 1) % mlfq.q[level].capacity] != p)
-        {
-            cprintf("[result]\n");
-            mlfqprint();
-            cprintf("deque(%d): %p\n", level, mlfq.q[level].q[(mlfq.q[level].front + 1) % mlfq.q[level].capacity]);
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            RAISEPANIC("mlfqnext2: rotate failure");
         }
         if (mlfqdequeue(level) == QFAILURE)
         {
-            panic("mlfqnext2: mlfqpop failure");
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            RAISEPANIC("mlfqnext2: mlfqpop failure");
         }
         if (mlfqenqueue(level, p) == QFAILURE)
         {
-            panic("mlfqnext2: mlfqpush failure");
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            RAISEPANIC("mlfqnext2: mlfqpush failure");
         }
     }
 
@@ -460,7 +467,7 @@ struct proc* mlfqtop()
             it = mlfqueuetop(level);
             if (!it)
             {
-                panic("mlfqtop: invalid top");
+                RAISEPANIC("mlfqtop: invalid top");
             }
 
             if (it->state == RUNNABLE)
@@ -471,11 +478,11 @@ struct proc* mlfqtop()
             // round robin
             if (mlfqdequeue(level) == QFAILURE)
             {
-                panic("mlfqtop: mlfqdequeue failure");
+                RAISEPANIC("mlfqtop: mlfqdequeue failure");
             }
             if (mlfqenqueue(level, it) == QFAILURE)
             {
-                panic("mlfqtop: mlfqenqueue failure");
+                RAISEPANIC("mlfqtop: mlfqenqueue failure");
             }
         }
     }
@@ -488,7 +495,7 @@ int mlfqenqueue(int level, struct proc* p)
 #ifdef DEBUGFLAG
     if (mlfq.q[level].qsize < 0 || mlfq.q[level].qsize == mlfq.q[level].capacity || mlfq.q[level].rear < -2 || mlfq.q[level].rear >= 65 || mlfq.q[level].front < -2 || mlfq.q[level].front >= 65)
     {
-        panic("mlfdqenqueue: outbound");
+        RAISEPANIC("mlfdqenqueue: outbound");
     }
     for (int i = 0; i < NLEVEL; ++i)
     {
@@ -527,7 +534,7 @@ int mlfqdequeue(int level)
 {
     if (mlfq.q[level].qsize < 0 || mlfq.q[level].qsize == mlfq.q[level].capacity || mlfq.q[level].rear < -2 || mlfq.q[level].rear >= 65 || mlfq.q[level].front < -2 || mlfq.q[level].front >= 65)
     {
-        panic("???");
+        RAISEPANIC("???");
     }
     if (mlfqisempty(level))
     {
@@ -545,17 +552,15 @@ int mlfqueuesize(int level)
 
 void strideinit(struct stridescheduler* ss, int maxticket)
 {
-    if (maxticket > STRIDEMAXTICKET)
-    {
-        panic("strideinit: maxticket > STRIDEMAXTICKET");
-    }
+    strideprint(ss);
 
     pqinit(&ss->pq);
+    initlock(&ss->lock, "stridescheduler");
     ss->totalusage = 0;
     ss->maxticket = maxticket;
 
     ss->stride[0] = 0;
-    ss->minusage = 0;
+    ss->minusage = 100;
     for (int i = 1; i <= maxticket; ++i)
     {
         ss->stride[i] = (double)1 / i;
@@ -564,6 +569,8 @@ void strideinit(struct stridescheduler* ss, int maxticket)
 
 int stridepush(struct stridescheduler* ss, void* value, int usage)
 {
+    // cprintf("push, total: %d, minusage: %d\n", ss->totalusage, ss->minusage);
+    cprintf("push start");
     if (usage <= 0 || ss->totalusage + usage > ss->maxticket)
     {
         return QFAILURE;
@@ -585,6 +592,8 @@ int stridepush(struct stridescheduler* ss, void* value, int usage)
     pqpush(&ss->pq, element);
 
     // strideprint(ss);
+    cprintf("push end: result: ");
+    strideprint(ss);
 
     return 0;
 }
@@ -643,15 +652,18 @@ int stridenext(struct stridescheduler* ss)
 // failure: return -1
 int stridefindindex(struct stridescheduler* ss, void* value)
 {
+    cprintf("stridefindindex: ");
     int find = -1;
     for (int index = 0; index < ss->pq.size; ++index)
     {
         if (ss->pq.data[index].value == value)
         {
+            cprintf("%p.%p / ", ss->pq.data[index].value, value);
             find = index;
             break;
         }
     }
+    cprintf("\n");
     return find;
 }
 
@@ -677,7 +689,7 @@ void strideremoveusagezero(struct stridescheduler* ss)
             {
                 if (strideremove(ss, ss->pq.data[index].value) == -1)
                 {
-                    panic("strideremoveusagezero: == -1");
+                    RAISEPANIC("strideremoveusagezero: == -1");
                 }
                 flag = 1;
                 break;
@@ -689,10 +701,12 @@ void strideremoveusagezero(struct stridescheduler* ss)
 
 int stridechangeusage(struct stridescheduler* ss, int index, int usage)
 {
+    cprintf("stridechangeusage(%s, %d, %d)\n", (ss == &masterscheduler ? "master" : "stride"), index, usage);
     int oldusage = (int)ss->pq.data[index].usage;
     int newtotal = ss->totalusage - oldusage + usage;
     if (usage <= 0 || newtotal <= 0 || newtotal > ss->maxticket)
     {
+        cprintf("stridechangeusage return -1: usage %d, oldusage %d, newtotla %d, maxticket %d\n", usage, oldusage, newtotal, ss->maxticket);
         return -1;
     }
 
@@ -709,6 +723,7 @@ int stridechangeusage(struct stridescheduler* ss, int index, int usage)
 
 int strideremove(struct stridescheduler* ss, void* value)
 {
+    cprintf("strideremove(%s, %p)\n", ss == &masterscheduler ? "master" : "stride", value);
     int find = stridefindindex(ss, value);
     if (find == -1)
     {
@@ -748,14 +763,18 @@ int strideremove(struct stridescheduler* ss, void* value)
 
 void strideprint(struct stridescheduler* stride)
 {
+    if (stride == &mainstride)
+    {
+    }
     cprintf("[%s]\n", ((stride == &masterscheduler) ? "master" : "stride"));
     cprintf("maxticket: %d\nminusage: %d\ntotalusage: %d\n", stride->maxticket, stride->minusage, stride->totalusage);
     pqprint(&stride->pq);
-    cprintf("\n");
+    cprintf("}\n");
 }
 
 void pqprint(struct priorityqueue* pq)
 {
+    cprintf("size: %d\n", pq->size);
     for (int index = 0; index < pq->size; ++index)
     {
         cprintf("%d(%p, %d) ", (int)(pq->data[index].key * 100), pq->data[index].value, pq->data[index].usage);
@@ -765,6 +784,8 @@ void pqprint(struct priorityqueue* pq)
 
 int set_cpu_share(struct proc* p, int usage)
 {
+    acquire(&masterscheduler.lock);
+    cprintf("[start] set_cpu_share");
     //TODO: p 유효성 검사
     if (p->schedule.sched != SCHEDMLFQ)
     {
@@ -775,7 +796,6 @@ int set_cpu_share(struct proc* p, int usage)
     int mlfqidx = stridefindindex(&masterscheduler, (void*)SCHEDMLFQ);
     int mlfqusage = (int)masterscheduler.pq.data[mlfqidx].usage;
     int newmlfqusage = mlfqusage - usage;
-    int strideidx = stridefindindex(&masterscheduler, (void*)SCHEDSTRIDE);
 
     if (newmlfqusage < MLFQMINTICKET)
     {
@@ -790,34 +810,50 @@ int set_cpu_share(struct proc* p, int usage)
     // newmlfqusage는 0일 수 없음. 따라서 따로 처리 x
     if (stridechangeusage(&masterscheduler, mlfqidx, newmlfqusage))
     {
-        panic("set_cpu_share: strridechangeusage failure");
+        RAISEPANIC("set_cpu_share: strridechangeusage failure");
     }
+
+    int strideidx = stridefindindex(&masterscheduler, (void*)SCHEDSTRIDE);
     if (strideidx == -1)
     {
+        cprintf("!! new stride !!\n");
+        strideprint(&masterscheduler);
         if (stridepush(&masterscheduler, (void*)SCHEDSTRIDE, usage) == QFAILURE)
         {   
-            panic("set_cpu_share: stridepush failure");
+            cprintf("[failure3]\nusage: %d\n", usage);
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            RAISEPANIC("set_cpu_share: stridepush failure");
         }
         strideidx = stridefindindex(&masterscheduler, (void*)SCHEDSTRIDE);
     }
     else
     {
+        cprintf("!! update stride !!\n");
         int strideusage = (int)masterscheduler.pq.data[strideidx].usage;
         int newstrideusage = strideusage + usage;
         
         if (newmlfqusage + newstrideusage != masterscheduler.maxticket)
         {
-            panic("set_cpu_share: invalid ticket");
+            cprintf("[failure1]\nnewmlfqusage: %d\nnewstrideusage: %d\nstrideusage: %d, mlfqusage: %d, mlfqindex: %d\nstrideindex: %d\nusage: %d\n", newmlfqusage, newstrideusage, strideusage, mlfqusage, mlfqidx, strideidx, usage);
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            RAISEPANIC("set_cpu_share: invalid ticket");
         }
 
         if (stridechangeusage(&masterscheduler, strideidx, newstrideusage))
         {
-            panic("set_cpu_share: stridechangeusage failure");
+            cprintf("[failure2]\nnewstrideusage: %d\n", newstrideusage);
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            RAISEPANIC("set_cpu_share: stridechangeusage failure");
         }
     }
     
 
     mlfqremove(p);
     p->schedule.sched = SCHEDSTRIDE;
+    cprintf("[end  ] set_cpu_share");
+    release(&masterscheduler.lock);
     return 0;
 }
