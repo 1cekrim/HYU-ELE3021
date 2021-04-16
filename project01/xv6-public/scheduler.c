@@ -344,10 +344,6 @@ int mlfqpush(struct proc* p)
     {
         return QFAILURE;
     }
-    // if (p->pid == 8)
-    {
-        mlfqprint();
-    }
     return QSUCCESS;
 }
 
@@ -390,30 +386,30 @@ int mlfqnext(struct proc* p, uint start, uint end)
     p->schedule.executionticks += executiontick;
 
     int level = p->schedule.level;
-    // uint executionticks = p->schedule.executionticks;
+    uint executionticks = p->schedule.executionticks;
 
-    // if (level + 1 < NLEVEL && executionticks >= mlfq.allotment[level])
-    // {
-    //     if (mlfqrotatetotarget(level, p) == QFAILURE)
-    //     {
-    //         strideprint(&masterscheduler);
-    //         strideprint(&mainstride);
-    //         panic("mlfqnext1: rotate failure");
-    //     }
-    //     if (mlfqdequeue(level) == QFAILURE)
-    //     {
-    //         strideprint(&masterscheduler);
-    //         strideprint(&mainstride);
-    //         panic("mlfqnext1: mlfqpop failure");
-    //     }
-    //     if (mlfqenqueue(level + 1, p) == QFAILURE)
-    //     {
-    //         strideprint(&masterscheduler);
-    //         strideprint(&mainstride);
-    //         panic("mlfqnext1: mlfqpush failure");
-    //     }
-    //     return 1;
-    // }
+    if (level + 1 < NLEVEL && executionticks >= mlfq.allotment[level])
+    {
+        if (mlfqrotatetotarget(level, p) == QFAILURE)
+        {
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            panic("mlfqnext1: rotate failure");
+        }
+        if (mlfqdequeue(level) == QFAILURE)
+        {
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            panic("mlfqnext1: mlfqpop failure");
+        }
+        if (mlfqenqueue(level + 1, p) == QFAILURE)
+        {
+            strideprint(&masterscheduler);
+            strideprint(&mainstride);
+            panic("mlfqnext1: mlfqpush failure");
+        }
+        return 1;
+    }
 
     int result = (executiontick >= mlfq.quantum[level]) || p->schedule.yield || p->state == SLEEPING;
     if (result)
