@@ -400,13 +400,13 @@ scheduler(void)
 
       if (p->state == RUNNABLE)
       {
-        start = sys_uptime();
         c->proc = p;
         switchuvm(p);
         p->state = RUNNING;    
+        start = sys_uptime();
         swtch(&(c->scheduler), p->context);
-        switchkvm();
         end = sys_uptime();
+        switchkvm();
       }
       
       switch (p->schedule.sched)
