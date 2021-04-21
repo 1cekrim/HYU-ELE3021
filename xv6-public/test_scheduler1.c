@@ -133,7 +133,7 @@ test_mlfq(int type, int pipe)
            cnt);
   }
 
-  printf(pipe, "%d", cnt);
+  printf(pipe, "%d\n", cnt);
 
   return;
 }
@@ -151,33 +151,13 @@ main(int argc, char* argv[])
   int i;
   /* Workload list */
   struct workload workloads[WORKLOAD_NUM] = {
-    /* Process scheduled by Stride scheduler, use 5% of CPU resources */
-    // {test_stride, 1},
-    // /* Process scheduled by Stride scheduler, use 15% of CPU resources */
-    // {test_stride, 2},
-    // {test_stride, 3},
-    // {test_stride, 4},
-    // {test_stride, 5},
-    // {test_stride, 6},
-    // {test_stride, 7},
-    // {test_stride, 8},
-    // {test_stride, 9},
-    // {test_stride, 10},
+    { test_stride, 5 },
     { test_stride, 50 },
     { test_stride, 25 },
-    { test_stride, 5 },
-    // {test_stride, 15},
     { test_mlfq, MLFQ_NONE },
     { test_mlfq, MLFQ_NONE },
     { test_mlfq, MLFQ_NONE },
     { test_mlfq, MLFQ_NONE },
-    // {test_mlfq, MLFQ_NONE},
-    // {test_mlfq, MLFQ_NONE},
-    // {test_mlfq, MLFQ_NONE},
-    // {test_mlfq, MLFQ_NONE},
-    // {test_mlfq, MLFQ_NONE},
-
-    // {test_mlfq, MLFQ_NONE},
   };
 
   int pipes[WORKLOAD_NUM][2];
