@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "scheduler.h"
 
 int
 sys_fork(void)
@@ -40,6 +41,30 @@ int
 sys_getpid(void)
 {
   return myproc()->pid;
+}
+
+int
+sys_getlev(void)
+{
+  return myproc()->schedule.level;
+}
+
+int
+sys_yield(void)
+{
+  yield();
+  return 0;
+}
+
+int
+sys_set_cpu_share(void)
+{
+  int usage;
+
+  if(argint(0, &usage) < 0)
+    return -1;
+  
+  return set_cpu_share(myproc(), usage); 
 }
 
 int

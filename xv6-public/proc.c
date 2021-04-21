@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "scheduler.h"
 
 struct {
   struct spinlock lock;
@@ -17,6 +18,7 @@ static struct proc *initproc;
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
+extern int sys_uptime(void);
 
 static void wakeup1(void *chan);
 
@@ -24,6 +26,7 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  mlfqinit();
 }
 
 // Must be called with interrupts disabled
@@ -78,6 +81,12 @@ allocproc(void)
 
   acquire(&ptable.lock);
 
+  // int cnt = 0;
+  
+  // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  //   if(p->state == UNUSED)
+      // ++cnt;
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
       goto found;
@@ -111,6 +120,15 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+
+
+  // mlfq에 p 추가
+  // 최대 process 개수 == mlfq level 0의 크기
+  // 따라서 mlfqpush가 실패하면 logic error
+  if (mlfqpush(p))
+  {
+    panic("allocproc: mlfqpush failure");
+  }
 
   return p;
 }
@@ -194,6 +212,7 @@ fork(void)
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
+    schedremoveproc(np);
     return -1;
   }
   np->sz = curproc->sz;
@@ -260,7 +279,6 @@ exit(void)
         wakeup1(initproc);
     }
   }
-
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();
@@ -275,7 +293,6 @@ wait(void)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-  
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -284,7 +301,9 @@ wait(void)
       if(p->parent != curproc)
         continue;
       havekids = 1;
+
       if(p->state == ZOMBIE){
+        //TODO: mlfq에서 process 제거
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
@@ -295,6 +314,7 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+        schedremoveproc(p);
         release(&ptable.lock);
         return pid;
       }
@@ -319,39 +339,96 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+extern struct stridescheduler mainstride;
+extern struct stridescheduler masterscheduler;
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p = 0;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+  int expired = 1;
+  int schedidx = 0;
+
+  strideinit(&masterscheduler, 100);
+  stridepush(&masterscheduler, (void*)SCHEDMLFQ, 100);
+
+  strideinit(&mainstride, 80);
+  expired = expired || stridenext(&masterscheduler);
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
+    schedidx = (int)stridetop(&masterscheduler);
+    stridenext(&masterscheduler);
+    
+    // expired가 true일 때 스케줄러에서 p을 받아옴
+    if (expired || p->state != RUNNABLE)
+    {
+      // update schedidx
+      switch (schedidx)
+      {
+        case SCHEDMLFQ: // mlfq
+          p = mlfqtop();
+          if (p)
+          {
+            break;
+          }
+        case SCHEDSTRIDE: // stride
+          p = stridetop(&mainstride);
+          if (p)
+          {
+            schedidx = 1;
+            break;
+          }
+        default:
+          break;
+          // no process
+      }
+    }
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    if (p)
+    {
+      uint start = 0;
+      uint end = 0;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+      if (p->state == RUNNABLE)
+      {
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;    
+        start = sys_uptime();
+        swtch(&(c->scheduler), p->context);
+        end = sys_uptime();
+        switchkvm();
+      }
+      
+      switch (p->schedule.sched)
+      {
+        case SCHEDMLFQ:
+          expired = mlfqnext(p, start, end);
+          break;
 
+        case SCHEDSTRIDE:
+          expired = stridenext(&mainstride);
+          break;
+
+        default:
+          panic("scheduler: invalid schedidx");
+      }
+      
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    release(&ptable.lock);
 
+    release(&ptable.lock);
   }
 }
 
@@ -387,9 +464,12 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+  myproc()->schedule.yield = 1;
   sched();
   release(&ptable.lock);
 }
+
+
 
 // A fork child's very first scheduling by scheduler()
 // will swtch here.  "Return" to user space.
