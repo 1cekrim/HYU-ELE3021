@@ -27,7 +27,8 @@ Cpp11BracedListStyle: 'false'
 FixNamespaceComments: 'true'
 IncludeBlocks: Preserve
 IndentPPDirectives: BeforeHash
-IndentWidth: '4'
+IndentWidth: '2'
+ColumnLimit: '80'
 KeepEmptyLinesAtTheStartOfBlocks: 'false'
 Language: Cpp
 NamespaceIndentation: None
