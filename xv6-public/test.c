@@ -2,7 +2,11 @@
 #include "stat.h"
 #include "user.h"
 
-#define TESTS X("test scheduler", "test_scheduler")
+#define TESTS                                                                  \
+  X("only mlfq test", "test_scheduler", "0", 0)                                \
+  X("only stride test", "test_scheduler", "1", 0)                              \
+  X("50 : 50 test", "test_scheduler", "2", 0)                                  \
+  X("80 : 20 test", "test_scheduler", "3", 0)
 
 struct test
 {
@@ -12,7 +16,7 @@ struct test
 };
 
 struct test tests[] = {
-#define X(name, path, ...) { (name), (path), (char*[]) { __VA_ARGS__ } },
+#define X(name, path, ...) { (name), (path), (char*[]) { path, __VA_ARGS__ } },
   TESTS
 #undef X
 };
@@ -35,7 +39,8 @@ main(int argc, char* arbgv[])
     }
     else
     {
-      exec(t->path, tests->argv);
+      printf(1, "t->argv: %s, %s\n", t->argv[0], t->argv[1]);
+      exec(t->path, t->argv);
       printf(1, "! EXEC FAIL %s !\n", t->name);
     }
   }

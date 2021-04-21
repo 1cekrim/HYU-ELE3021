@@ -11,8 +11,6 @@
 
 #define MLFQ_LEVEL (3) /* Number of level(priority) of MLFQ scheduler */
 
-#define WORKLOAD_NUM (7) /* The number of workloads */
-
 /**
  * This function requests portion of CPU resources with given parameter
  * value by calling set_cpu_share() system call.
@@ -144,24 +142,14 @@ struct workload
   int arg;
 };
 
-int
-main(int argc, char* argv[])
+void
+dotest(struct workload* workloads, int size)
 {
   int pid;
   int i;
-  /* Workload list */
-  struct workload workloads[WORKLOAD_NUM] = {
-    { test_mlfq, MLFQ_NONE },
-    { test_stride, 25 },
-    { test_mlfq, MLFQ_NONE },
-    { test_stride, 5 },
-    { test_mlfq, MLFQ_NONE },
-    { test_stride, 50 },
-    { test_mlfq, MLFQ_NONE },
-  };
 
-  int pipes[WORKLOAD_NUM][2];
-  for (i = 0; i < WORKLOAD_NUM; ++i)
+  int pipes[size][2];
+  for (i = 0; i < size; ++i)
   {
     if (pipe(pipes[i]) < 0)
     {
@@ -170,9 +158,9 @@ main(int argc, char* argv[])
     }
   }
 
-  int results[WORKLOAD_NUM];
+  int results[size];
 
-  for (i = 0; i < WORKLOAD_NUM; i++)
+  for (i = 0; i < size; i++)
   {
     pid = fork();
     if (pid > 0)
@@ -198,13 +186,13 @@ main(int argc, char* argv[])
     }
   }
 
-  for (i = 0; i < WORKLOAD_NUM; i++)
+  for (i = 0; i < size; i++)
   {
     wait();
   }
 
   int total = 0;
-  for (i = 0; i < WORKLOAD_NUM; ++i)
+  for (i = 0; i < size; ++i)
   {
     char buf[1000];
     read(pipes[i][0], buf, 999);
@@ -216,7 +204,7 @@ main(int argc, char* argv[])
   printf(1, "total: %d\n", total);
 
   int stridetickets = 0;
-  for (i = 0; i < WORKLOAD_NUM; ++i)
+  for (i = 0; i < size; ++i)
   {
     if (workloads[i].func == test_stride)
     {
@@ -225,7 +213,7 @@ main(int argc, char* argv[])
   }
 
   int mlfqcount = 0;
-  for (i = 0; i < WORKLOAD_NUM; ++i)
+  for (i = 0; i < size; ++i)
   {
     if (workloads[i].func == test_mlfq)
     {
@@ -235,7 +223,7 @@ main(int argc, char* argv[])
 
   int mlfqpercent = mlfqcount ? (100 - stridetickets) / mlfqcount : 0;
 
-  for (i = 0; i < WORKLOAD_NUM; ++i)
+  for (i = 0; i < size; ++i)
   {
     float percent = (float)results[i] * 100 / total;
     int digit     = (int)percent;
@@ -248,7 +236,7 @@ main(int argc, char* argv[])
   if (mlfqpercent)
   {
     int mlfqtotalusage = 0;
-    for (i = 0; i < WORKLOAD_NUM; ++i)
+    for (i = 0; i < size; ++i)
     {
       if (workloads[i].func == test_mlfq)
       {
@@ -264,4 +252,69 @@ main(int argc, char* argv[])
   }
 
   exit();
+}
+
+int
+main(int argc, char* argv[])
+{
+  struct workload workloads[][10] = { {
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                       },
+                                       {
+                                           { test_stride, 5 },
+                                           { test_stride, 5 },
+                                           { test_stride, 5 },
+                                           { test_stride, 5 },
+                                           { test_stride, 5 },
+                                           { test_stride, 10 },
+                                           { test_stride, 10 },
+                                           { test_stride, 15 },
+                                           { test_stride, 20 },
+                                           { test_mlfq, MLFQ_NONE },
+                                       },
+                                       {
+                                           { test_stride, 5 },
+                                           { test_stride, 5 },
+                                           { test_stride, 10 },
+                                           { test_stride, 10 },
+                                           { test_stride, 20 },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                       },
+                                       {
+                                           { test_stride, 5 },
+                                           { test_stride, 5 },
+                                           { test_stride, 10 },
+                                           { test_stride, 15 },
+                                           { test_stride, 45 },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                           { test_mlfq, MLFQ_NONE },
+                                       } };
+  int sizes[]                      = { 10, 10, 10, 10 };
+
+  if (argc != 2)
+  {
+    printf(1, "%d\n", argc);
+    printf(1, "test_scheduler num\n");
+    exit();
+  }
+
+  int test = atoi(argv[1]);
+
+  dotest(workloads[test], sizes[test]);
 }
