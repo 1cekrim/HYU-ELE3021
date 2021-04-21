@@ -1,7 +1,6 @@
 #define QFAILURE 1
 #define QSUCCESS 0
 #define MSIZE    NPROC + 1
-// #define DEBUGFLAG
 
 #include "types.h"
 #include "defs.h"
@@ -660,23 +659,11 @@ strideremove(struct stridescheduler* ss, void* value)
     return -1;
   }
 
-#ifdef DEBUGFLAG
-  cprintf("strideremove find: %d\n", find);
-#endif
-
   int usage             = (int)ss->pq.data[find].usage;
   ss->pq.data[find].key = -1;
 
-#ifdef DEBUGFLAG
-  strideprint(ss);
-#endif
-
   pqshiftup(&ss->pq, find);
   pqpop(&ss->pq);
-
-#ifdef DEBUGFLAG
-  strideprint(ss);
-#endif
 
   ss->totalusage -= usage;
 
