@@ -151,12 +151,12 @@ main(int argc, char* argv[])
   int i;
   /* Workload list */
   struct workload workloads[WORKLOAD_NUM] = {
-    { test_stride, 5 },
-    { test_stride, 50 },
+    { test_mlfq, MLFQ_NONE },
     { test_stride, 25 },
     { test_mlfq, MLFQ_NONE },
+    { test_stride, 5 },
     { test_mlfq, MLFQ_NONE },
-    { test_mlfq, MLFQ_NONE },
+    { test_stride, 50 },
     { test_mlfq, MLFQ_NONE },
   };
 
