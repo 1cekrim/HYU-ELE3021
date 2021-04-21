@@ -2,7 +2,7 @@
 #include "stat.h"
 #include "user.h"
 
-#define TESTS X("test scheduler", "test_scheduler1")
+#define TESTS X("test scheduler", "test_scheduler")
 
 struct test
 {
