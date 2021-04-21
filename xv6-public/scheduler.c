@@ -311,28 +311,17 @@ void mlfqboost()
     struct proc* p = 0;
     for (int level = 1; level < NLEVEL; ++level)
     {
-        while (!mlfqisempty(level))
+        int capacity = mlfq.q[level].capacity;
+        int front = mlfq.q[level].front;
+        for (int i = 0; i < mlfq.q[level].qsize; ++i)
         {
-            p = mlfqueuetop(level);
-            if (!p)
-            {
-                mlfqprint();
-                panic("mlfqboost: mlfqtop failure");
-            }
-            if (mlfqdequeue(level) == QFAILURE)
-            {
-                mlfqprint();
-                panic("mlfqboost: mlfqdequeue failure");
-            }
-
-            p->schedule.executionticks = 0;
-            
-            if (mlfqenqueue(0, p) == QFAILURE)
-            {
-                mlfqprint();
-                panic("mlfqboost: mlfqenqueue failure");
-            }
+            front = (front + 1) % capacity;
+            p = mlfq.q[level].q[front];
+            mlfqenqueue(0, p);
         }
+        mlfq.q[level].front = -1;
+        mlfq.q[level].rear = -1;
+        mlfq.q[level].qsize = 0;
     }
 }
 
