@@ -9,18 +9,20 @@
 #include "mmu.h"
 #include "spinlock.h"
 
-void freerange(void *vstart, void *vend);
+void freerange(void* vstart, void* vend);
 extern char end[]; // first address after kernel loaded from ELF file
                    // defined by the kernel linker script in kernel.ld
 
-struct run {
-  struct run *next;
+struct run
+{
+  struct run* next;
 };
 
-struct {
+struct
+{
   struct spinlock lock;
   int use_lock;
-  struct run *freelist;
+  struct run* freelist;
 } kmem;
 
 // Initialization happens in two phases.
@@ -29,7 +31,7 @@ struct {
 // 2. main() calls kinit2() with the rest of the physical pages
 // after installing a full page table that maps them on all cores.
 void
-kinit1(void *vstart, void *vend)
+kinit1(void* vstart, void* vend)
 {
   initlock(&kmem.lock, "kmem");
   kmem.use_lock = 0;
@@ -37,42 +39,42 @@ kinit1(void *vstart, void *vend)
 }
 
 void
-kinit2(void *vstart, void *vend)
+kinit2(void* vstart, void* vend)
 {
   freerange(vstart, vend);
   kmem.use_lock = 1;
 }
 
 void
-freerange(void *vstart, void *vend)
+freerange(void* vstart, void* vend)
 {
-  char *p;
+  char* p;
   p = (char*)PGROUNDUP((uint)vstart);
-  for(; p + PGSIZE <= (char*)vend; p += PGSIZE)
+  for (; p + PGSIZE <= (char*)vend; p += PGSIZE)
     kfree(p);
 }
-//PAGEBREAK: 21
+// PAGEBREAK: 21
 // Free the page of physical memory pointed at by v,
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
 void
-kfree(char *v)
+kfree(char* v)
 {
-  struct run *r;
+  struct run* r;
 
-  if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
+  if ((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
 
   // Fill with junk to catch dangling refs.
   memset(v, 1, PGSIZE);
 
-  if(kmem.use_lock)
+  if (kmem.use_lock)
     acquire(&kmem.lock);
-  r = (struct run*)v;
-  r->next = kmem.freelist;
+  r             = (struct run*)v;
+  r->next       = kmem.freelist;
   kmem.freelist = r;
-  if(kmem.use_lock)
+  if (kmem.use_lock)
     release(&kmem.lock);
 }
 
@@ -82,15 +84,14 @@ kfree(char *v)
 char*
 kalloc(void)
 {
-  struct run *r;
+  struct run* r;
 
-  if(kmem.use_lock)
+  if (kmem.use_lock)
     acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if (r)
     kmem.freelist = r->next;
-  if(kmem.use_lock)
+  if (kmem.use_lock)
     release(&kmem.lock);
   return (char*)r;
 }
-

@@ -16,12 +16,12 @@ int ncpu;
 uchar ioapicid;
 
 static uchar
-sum(uchar *addr, int len)
+sum(uchar* addr, int len)
 {
   int i, sum;
 
   sum = 0;
-  for(i=0; i<len; i++)
+  for (i = 0; i < len; i++)
     sum += addr[i];
   return sum;
 }
@@ -33,9 +33,9 @@ mpsearch1(uint a, int len)
   uchar *e, *p, *addr;
 
   addr = P2V(a);
-  e = addr+len;
-  for(p = addr; p < e; p += sizeof(struct mp))
-    if(memcmp(p, "_MP_", 4) == 0 && sum(p, sizeof(struct mp)) == 0)
+  e    = addr + len;
+  for (p = addr; p < e; p += sizeof(struct mp))
+    if (memcmp(p, "_MP_", 4) == 0 && sum(p, sizeof(struct mp)) == 0)
       return (struct mp*)p;
   return 0;
 }
@@ -48,17 +48,20 @@ mpsearch1(uint a, int len)
 static struct mp*
 mpsearch(void)
 {
-  uchar *bda;
+  uchar* bda;
   uint p;
-  struct mp *mp;
+  struct mp* mp;
 
-  bda = (uchar *) P2V(0x400);
-  if((p = ((bda[0x0F]<<8)| bda[0x0E]) << 4)){
-    if((mp = mpsearch1(p, 1024)))
+  bda = (uchar*)P2V(0x400);
+  if ((p = ((bda[0x0F] << 8) | bda[0x0E]) << 4))
+  {
+    if ((mp = mpsearch1(p, 1024)))
       return mp;
-  } else {
-    p = ((bda[0x14]<<8)|bda[0x13])*1024;
-    if((mp = mpsearch1(p-1024, 1024)))
+  }
+  else
+  {
+    p = ((bda[0x14] << 8) | bda[0x13]) * 1024;
+    if ((mp = mpsearch1(p - 1024, 1024)))
       return mp;
   }
   return mpsearch1(0xF0000, 0x10000);
@@ -70,19 +73,19 @@ mpsearch(void)
 // if correct, check the version.
 // To do: check extended table checksum.
 static struct mpconf*
-mpconfig(struct mp **pmp)
+mpconfig(struct mp** pmp)
 {
-  struct mpconf *conf;
-  struct mp *mp;
+  struct mpconf* conf;
+  struct mp* mp;
 
-  if((mp = mpsearch()) == 0 || mp->physaddr == 0)
+  if ((mp = mpsearch()) == 0 || mp->physaddr == 0)
     return 0;
-  conf = (struct mpconf*) P2V((uint) mp->physaddr);
-  if(memcmp(conf, "PCMP", 4) != 0)
+  conf = (struct mpconf*)P2V((uint)mp->physaddr);
+  if (memcmp(conf, "PCMP", 4) != 0)
     return 0;
-  if(conf->version != 1 && conf->version != 4)
+  if (conf->version != 1 && conf->version != 4)
     return 0;
-  if(sum((uchar*)conf, conf->length) != 0)
+  if (sum((uchar*)conf, conf->length) != 0)
     return 0;
   *pmp = mp;
   return conf;
@@ -93,27 +96,30 @@ mpinit(void)
 {
   uchar *p, *e;
   int ismp;
-  struct mp *mp;
-  struct mpconf *conf;
-  struct mpproc *proc;
-  struct mpioapic *ioapic;
+  struct mp* mp;
+  struct mpconf* conf;
+  struct mpproc* proc;
+  struct mpioapic* ioapic;
 
-  if((conf = mpconfig(&mp)) == 0)
+  if ((conf = mpconfig(&mp)) == 0)
     panic("Expect to run on an SMP");
-  ismp = 1;
+  ismp  = 1;
   lapic = (uint*)conf->lapicaddr;
-  for(p=(uchar*)(conf+1), e=(uchar*)conf+conf->length; p<e; ){
-    switch(*p){
+  for (p = (uchar*)(conf + 1), e = (uchar*)conf + conf->length; p < e;)
+  {
+    switch (*p)
+    {
     case MPPROC:
       proc = (struct mpproc*)p;
-      if(ncpu < NCPU) {
-        cpus[ncpu].apicid = proc->apicid;  // apicid may differ from ncpu
+      if (ncpu < NCPU)
+      {
+        cpus[ncpu].apicid = proc->apicid; // apicid may differ from ncpu
         ncpu++;
       }
       p += sizeof(struct mpproc);
       continue;
     case MPIOAPIC:
-      ioapic = (struct mpioapic*)p;
+      ioapic   = (struct mpioapic*)p;
       ioapicid = ioapic->apicno;
       p += sizeof(struct mpioapic);
       continue;
@@ -127,13 +133,14 @@ mpinit(void)
       break;
     }
   }
-  if(!ismp)
+  if (!ismp)
     panic("Didn't find a suitable machine");
 
-  if(mp->imcrp){
+  if (mp->imcrp)
+  {
     // Bochs doesn't support IMCR, so this doesn't run on Bochs.
     // But it would on real hardware.
-    outb(0x22, 0x70);   // Select IMCR
-    outb(0x23, inb(0x23) | 1);  // Mask external interrupts.
+    outb(0x22, 0x70);          // Select IMCR
+    outb(0x23, inb(0x23) | 1); // Mask external interrupts.
   }
 }
