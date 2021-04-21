@@ -1,3 +1,6 @@
+#ifndef __USER_H__
+#define __USER_H__
+
 struct stat;
 struct rtcdate;
 
@@ -30,7 +33,7 @@ int getlev(void);
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
-void *memmove(void*, const void*, int);
+void* memmove(void*, const void*, int);
 char* strchr(const char*, char c);
 int strcmp(const char*, const char*);
 void printf(int, const char*, ...);
@@ -40,3 +43,5 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+
+#endif
