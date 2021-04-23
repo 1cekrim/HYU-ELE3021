@@ -2,11 +2,11 @@
 #include "stat.h"
 #include "user.h"
 
-#define TESTS                                     \
-  X("only mlfq test", "test_scheduler", "0", 0)   \
-  X("only stride test", "test_scheduler", "1", 0) \
-  X("50 : 50 test", "test_scheduler", "2", 0)     \
-  X("80 : 20 test", "test_scheduler", "3", 0)
+#define TESTS                                  \
+  X("only mlfq test", "test_scheduler", "0")   \
+  X("only stride test", "test_scheduler", "1") \
+  X("50 : 50 test", "test_scheduler", "2")     \
+  X("80 : 20 test", "test_scheduler", "3")
 
 struct test
 {
@@ -16,7 +16,8 @@ struct test
 };
 
 struct test tests[] = {
-#define X(name, path, ...) { (name), (path), (char*[]) { path, __VA_ARGS__ } },
+#define X(name, path, ...) \
+  { (name), (path), (char*[]) { path, __VA_ARGS__, 0 } },
   TESTS
 #undef X
 };
