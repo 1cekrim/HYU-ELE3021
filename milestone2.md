@@ -55,7 +55,7 @@ void mlfqboost();
 > `uint end`  
 > 프로세스가 scheduler의 context로 swtch한 직후에 측정한 `sys_uptime`  
 >
-> `p`, `start`, `end`를 기반으로 MLFQ의 상태를 변경합니다
+> `p`, `start`, `end` 값들을 기반으로 MLFQ를 다음 상태로 전이시킵니다
 ---
 
 > ```c
@@ -66,7 +66,7 @@ void mlfqboost();
 
 ### queue 구현
 
-MLFQ에서 사용되는 queue를 구현했습니다.
+MLFQ에서 사용하기 위해 queue를 구현했습니다
 
 ```c
 struct mlfqueue
@@ -78,6 +78,9 @@ struct mlfqueue
   int capacity;
 };
 ```
+
+전체 OS 내에서 최대 NPROC개의 프로세스가 존재할 수 있으므로, queue에 최대 NPROC개를 넣을 수 있도록 했습니다.  
+RR를 진행한다는 mlfq의 특성상 push와 pop이 자주 일어나므로, circular queue로 구현했습니다.
 
 ### MLFQ 구현
 
