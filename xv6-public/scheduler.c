@@ -61,18 +61,19 @@ int strideremove(struct stridescheduler* ss, void* value);
 void strideprint(struct stridescheduler* stride);
 void pqprint(struct priorityqueue* pq);
 int set_cpu_share(struct proc* p, int usage);
-void report_message(char* filename, const char* signature, int line, char* message);
+void report_message(char* filename, const char* signature, int line,
+                    char* message);
 
 struct stridescheduler mainstride;
 struct stridescheduler masterscheduler;
 
-#define assert(flag, message)                                                  \
-  do                                                                           \
-  {                                                                            \
-    if (flag)                                                                  \
-    {                                                                          \
-      report_message(__FILE__, __func__, __LINE__, message);                   \
-    }                                                                          \
+#define assert(flag, message)                                \
+  do                                                         \
+  {                                                          \
+    if (flag)                                                \
+    {                                                        \
+      report_message(__FILE__, __func__, __LINE__, message); \
+    }                                                        \
   } while (0)
 
 void
@@ -275,8 +276,7 @@ schedremoveproc(struct proc* p)
   case SCHEDMLFQ:
     mlfqremove(p);
     break;
-  case SCHEDSTRIDE:
-  {
+  case SCHEDSTRIDE: {
     int usage = strideremove(&mainstride, p);
     assert(usage == -1, "usage == -1");
 

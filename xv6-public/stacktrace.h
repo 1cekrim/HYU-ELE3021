@@ -21,8 +21,8 @@ void raisepanic(struct tracest* st, char* message);
 struct tracest* pushtracest(char* filename, const char* signature, uint line);
 void poptracest(struct tracest** st);
 
-#define STACKTRACE()                                                           \
-  __attribute__((__cleanup__(poptracest))) struct tracest* _stacktraceraii =   \
+#define STACKTRACE()                                                         \
+  __attribute__((__cleanup__(poptracest))) struct tracest* _stacktraceraii = \
       pushtracest(__FILE__, __func__, __LINE__)
 
 #define RAISEPANIC(msg) raisepanic(_stacktraceraii, msg)

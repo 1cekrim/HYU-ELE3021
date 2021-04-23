@@ -3,12 +3,12 @@ AlignAfterOpenBracket: Align
 AlignConsecutiveMacros: 'true'
 AlignConsecutiveAssignments: 'true'
 AlignConsecutiveDeclarations: 'false'
-AlignEscapedNewlines: Right
+AlignEscapedNewlines: Left
 AlignOperands: 'true'
 AlignTrailingComments: 'true'
 AllowAllArgumentsOnNextLine: 'false'
 AllowAllConstructorInitializersOnNextLine: 'false'
-AllowAllParametersOfDeclarationOnNextLine: 'false'
+AllowAllParametersOfDeclarationOnNextLine: 'true'
 AllowShortBlocksOnASingleLine: 'false'
 AllowShortCaseLabelsOnASingleLine: 'false'
 AllowShortFunctionsOnASingleLine: None
@@ -18,15 +18,29 @@ AllowShortLoopsOnASingleLine: 'false'
 AlwaysBreakAfterReturnType: TopLevelDefinitions
 AlwaysBreakBeforeMultilineStrings: 'false'
 AlwaysBreakTemplateDeclarations: 'Yes'
-BreakBeforeBraces: Allman
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass:      'true'
+  AfterControlStatement: 'true'
+  AfterEnum:       'true'
+  AfterFunction:   'true'
+  AfterNamespace:  'true'
+  AfterObjCDeclaration: 'true'
+  AfterStruct:     'true'
+  AfterUnion:      'true'
+  BeforeCatch:     'true'
+  BeforeElse:      'true'
+  IndentBraces:    'false'
 BreakBeforeTernaryOperators: 'true'
 BreakConstructorInitializers: AfterColon
 BreakInheritanceList: AfterColon
+BinPackArguments: 'true'
+BinPackParameters: 'true'
 CompactNamespaces: 'false'
 Cpp11BracedListStyle: 'false'
 FixNamespaceComments: 'true'
 IncludeBlocks: Preserve
-IndentPPDirectives: BeforeHash
+IndentPPDirectives: None
 IndentWidth: '2'
 ColumnLimit: '80'
 KeepEmptyLinesAtTheStartOfBlocks: 'false'
