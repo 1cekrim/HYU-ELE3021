@@ -42,7 +42,6 @@ void mlfqboost();
 void strideinit(struct stridescheduler*, int);
 int stridepush(struct stridescheduler*, void*, int);
 void* stridetop(struct stridescheduler*);
-int stridenext(struct stridescheduler*);
 
 void schedremoveproc(struct proc*);
 int set_cpu_share(struct proc*, int);

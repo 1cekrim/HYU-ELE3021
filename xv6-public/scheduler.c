@@ -53,7 +53,6 @@ int mlfqueuesize(int level);
 void strideinit(struct stridescheduler* ss, int maxticket);
 int stridepush(struct stridescheduler* ss, void* value, int usage);
 void* stridetop(struct stridescheduler* ss);
-int stridenext(struct stridescheduler* ss);
 int stridefindindex(struct stridescheduler* ss, void* value);
 void strideupdateminusage(struct stridescheduler* ss);
 int stridechangeusage(struct stridescheduler* ss, int index, int usage);
@@ -389,7 +388,7 @@ mlfqnext(struct proc* p, uint start, uint end)
   }
 
   int result = (executiontick >= mlfq.quantum[level]) || p->schedule.yield ||
-               p->state == SLEEPING;
+                p->state == SLEEPING;
   if (result)
   {
     assert(mlfqrotatetotarget(level, p) == QFAILURE, "rotate failure");
@@ -532,6 +531,8 @@ stridetop(struct stridescheduler* ss)
   if (ss == &masterscheduler)
   {
     struct pqelement result = pqtop(&ss->pq);
+    result.key += ss->stride[(int)result.usage];
+    pqupdatetop(&ss->pq, result);
     return result.value;
   }
   else
@@ -565,19 +566,6 @@ stridetop(struct stridescheduler* ss)
 
     return result;
   }
-}
-
-int
-stridenext(struct stridescheduler* ss)
-{
-  if (ss == &masterscheduler)
-  {
-    struct pqelement result = pqtop(&ss->pq);
-    result.key += ss->stride[(int)result.usage];
-    pqupdatetop(&ss->pq, result);
-    return 1;
-  }
-  return 1;
 }
 
 // failure: return -1

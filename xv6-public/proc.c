@@ -371,7 +371,6 @@ scheduler(void)
   stridepush(&masterscheduler, (void*)SCHEDMLFQ, 100);
 
   strideinit(&mainstride, 80);
-  expired = expired || stridenext(&masterscheduler);
 
   for (;;)
   {
@@ -382,7 +381,6 @@ scheduler(void)
     acquire(&ptable.lock);
 
     schedidx = (int)stridetop(&masterscheduler);
-    stridenext(&masterscheduler);
 
     // expired가 true일 때 스케줄러에서 p을 받아옴
     if (expired || p->state != RUNNABLE)
@@ -434,7 +432,7 @@ scheduler(void)
         break;
 
       case SCHEDSTRIDE:
-        expired = stridenext(&mainstride);
+        expired = 1;
         break;
 
       default:
