@@ -387,12 +387,12 @@ stride scheduling의 정의에 따라 `pass_value(p_n+1) = pass_value(p_n) + str
 역시 stride scheduling의 정의에 따라 pass value는 항상 증가하므로, `max_pass_value(S_n+1) = max(max_pass_value(S_n), pass_value(p_n) + stride(p_n))` 이 성립한다.
 즉, `max_stride(S_n+1) >= max(max_pass_value(S_n), pass_value(p_n) + stride(p_n)) - pass_value(p_n) - stride(p_n)`임을 증명하면 (5)를 참이라 할 수 있다. (6)  
 
-1. `max_pass_value(S_n) >= pass_value(p_n) + stride(p_n)`인 경우
+1. `max_pass_value(S_n) >= pass_value(p_n) + stride(p_n)`인 경우  
 `max_stride(S_n+1) >= max_pass_value(S_n) - pass_value(p_n) - stride(p_n)`
 (3)이 성립한다 가정했으므로, `stride(p_n) >= max_pass_value(S_n) - pass_value(p_n)`가 참이다. 이는 `max_pass_value(S_n) - pass_value(p_n) - stride(p_n) <= 0`와 동치이다.  
 즉 `max_stride(S_n+1) >= a (a<=0)`이 참이라면 현재 경우에서 (6)이 참이 되는데, stride 값은 항상 양수이므로, 0또는 음수인 a보다 항상 크다. 따라서 현재 경우에서 (6)이 참이다.
 
-2. `max_pass_value(S_n) < pass_value(p_n) + stride(p_n)`인 경우
+2. `max_pass_value(S_n) < pass_value(p_n) + stride(p_n)`인 경우  
 `max_stride(S_n+1) >= pass_value(p_n) + stride(p_n) - pass_value(p_n) - stride(p_n) = 0`  
 stride 값은 항상 양수이므로, 현재 경우에서 (6)이 참이다.
 
