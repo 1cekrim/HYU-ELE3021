@@ -85,12 +85,6 @@ allocproc(void)
 
   acquire(&ptable.lock);
 
-  // int cnt = 0;
-
-  // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-  //   if(p->state == UNUSED)
-  // ++cnt;
-
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if (p->state == UNUSED)
       goto found;
@@ -101,6 +95,15 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid   = nextpid++;
+
+  // mlfq에 p 추가
+  // 최대 process 개수 == mlfq level 0의 크기
+  // 따라서 mlfqpush가 실패하면 logic error
+
+  if (mlfqpush(p))
+  {
+    panic("allocproc: mlfqpush failure");
+  }
 
   release(&ptable.lock);
 
@@ -126,13 +129,6 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-  // mlfq에 p 추가
-  // 최대 process 개수 == mlfq level 0의 크기
-  // 따라서 mlfqpush가 실패하면 logic error
-  if (mlfqpush(p))
-  {
-    panic("allocproc: mlfqpush failure");
-  }
 
   return p;
 }
@@ -221,7 +217,6 @@ fork(void)
     kfree(np->kstack);
     np->kstack = 0;
     np->state  = UNUSED;
-    schedremoveproc(np);
     return -1;
   }
   np->sz     = curproc->sz;
@@ -383,7 +378,7 @@ scheduler(void)
     schedidx = (int)stridetop(&masterscheduler);
 
     // expired가 true일 때 스케줄러에서 p을 받아옴
-    if (expired || p->state != RUNNABLE)
+    if (expired || p->state != RUNNABLE || p->schedule.sched != schedidx)
     {
       // update schedidx
       switch (schedidx)
