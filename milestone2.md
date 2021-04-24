@@ -388,7 +388,7 @@ stride scheduling의 정의에 따라 `pass_value(p_n+1) = pass_value(p_n) + str
 즉, `max_stride(S_n+1) >= max(max_pass_value(S_n), pass_value(p_n) + stride(p_n)) - pass_value(p_n) - stride(p_n)`임을 증명하면 (5)를 참이라 할 수 있다. (6)  
 
 1. `max_pass_value(S_n) >= pass_value(p_n) + stride(p_n)`인 경우  
-`max_stride(S_n+1) >= max_pass_value(S_n) - pass_value(p_n) - stride(p_n)`
+`max_stride(S_n+1) >= max_pass_value(S_n) - pass_value(p_n) - stride(p_n)`  
 (3)이 성립한다 가정했으므로, `stride(p_n) >= max_pass_value(S_n) - pass_value(p_n)`가 참이다. 이는 `max_pass_value(S_n) - pass_value(p_n) - stride(p_n) <= 0`와 동치이다.  
 즉 `max_stride(S_n+1) >= a (a<=0)`이 참이라면 현재 경우에서 (6)이 참이 되는데, stride 값은 항상 양수이므로, 0또는 음수인 a보다 항상 크다. 따라서 현재 경우에서 (6)이 참이다.
 
@@ -397,12 +397,12 @@ stride scheduling의 정의에 따라 `pass_value(p_n+1) = pass_value(p_n) + str
 stride 값은 항상 양수이므로, 현재 경우에서 (6)이 참이다.
 
 두 경우 모두 (6)이 참이므로, (6)은 참이다.  
-즉, n=1일 때 가정 (1)이 참이었고, n일때 (1)이 참이라고 가정했을 때 n+1일때 역시 (1)이 참이라는 것을 위에서 증명했으므로 가정 (1)은 수학적 귀납법에 의해 모든 자연수 n에 대해 성립한다.
+즉, n=1일 때 가정 (1)이 참이었고, n일때 (1)이 참이라고 가정하면 n+1일때 역시 (1)이 참이라는 것을 위에서 증명했으므로, 가정 (1)은 수학적 귀납법에 의해 모든 자연수 n에 대해 성립한다.
 
 ---
 
 위 증명을 통해, `C = maximum stride`로 설정하면 `minimum pass value + C >= maximum pass value`를 만족할 만큼 커진다는 것이 증명되었습니다.  
-또한 `C`는 너무 크지도 않습니다. 왜냐하면 어차피 `pass value`에 `stride`가 더해지는 것은 `stride scheduling` 과정에서 이뤄지는 자연적인 일이기 때문입니다.
+또한 `C`는 너무 크지도 않습니다. 왜냐하면 어차피 `pass value`에 `stride`가 더해지는 것은 `stride scheduling` 과정에서 이뤄지는 자연스러운 일이기 때문입니다.
 
 ```c
 ss->totalusage += usage;
