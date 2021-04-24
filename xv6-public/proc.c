@@ -111,6 +111,9 @@ found:
   if ((p->kstack = kalloc()) == 0)
   {
     p->state = UNUSED;
+    acquire(&ptable.lock);
+    schedremoveproc(p);
+    release(&ptable.lock);
     return 0;
   }
   sp = p->kstack + KSTACKSIZE;
@@ -217,6 +220,9 @@ fork(void)
     kfree(np->kstack);
     np->kstack = 0;
     np->state  = UNUSED;
+    acquire(&ptable.lock);
+    schedremoveproc(np);
+    release(&ptable.lock);
     return -1;
   }
   np->sz     = curproc->sz;
