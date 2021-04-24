@@ -320,7 +320,6 @@ wait(void)
 
       if (p->state == ZOMBIE)
       {
-        // TODO: mlfq에서 process 제거
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
