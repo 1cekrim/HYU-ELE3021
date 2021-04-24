@@ -388,7 +388,7 @@ mlfqnext(struct proc* p, uint start, uint end)
   }
 
   int result = (executiontick >= mlfq.quantum[level]) || p->schedule.yield ||
-                p->state == SLEEPING;
+               p->state == SLEEPING;
   if (result)
   {
     assert(mlfqrotatetotarget(level, p) == QFAILURE, "rotate failure");
@@ -691,12 +691,40 @@ pqprint(struct priorityqueue* pq)
 int
 set_cpu_share(struct proc* p, int usage)
 {
+  acquire(&masterscheduler.lock);
   if (p->schedule.sched != SCHEDMLFQ)
   {
-    return -1;
+    // MLFQ가 최소한 MLFQMINTICKET 만큼의 ticket을 점유해야 한다
+    int mlfqidx   = stridefindindex(&masterscheduler, (void*)SCHEDMLFQ);
+    int strideidx = stridefindindex(&masterscheduler, (void*)SCHEDSTRIDE);
+    int mlfqusage = (int)masterscheduler.pq.data[mlfqidx].usage;
+
+    int old_usage = mainstride.pq.data[stridefindindex(&mainstride, p)].usage;
+
+    int newmlfqusage = mlfqusage + old_usage - usage;
+    if (newmlfqusage < MLFQMINTICKET)
+    {
+      return -2;
+    }
+
+    int strideusage    = (int)masterscheduler.pq.data[strideidx].usage;
+    int newstrideusage = strideusage - old_usage + usage;
+
+    assert(newmlfqusage + newstrideusage != masterscheduler.maxticket,
+           "invalid ticket");
+
+    assert(stridechangeusage(&masterscheduler, strideidx, newstrideusage),
+           "strridechangeusage failure");
+    mlfqidx = stridefindindex(&masterscheduler, (void*)SCHEDMLFQ);
+    assert(stridechangeusage(&masterscheduler, mlfqidx, newmlfqusage),
+           "stridechangeusage failure");
+    assert(
+        stridechangeusage(&mainstride, stridefindindex(&mainstride, p), usage),
+        "stridechangeusage failure");
+    release(&masterscheduler.lock);
+    return 0;
   }
 
-  acquire(&masterscheduler.lock);
   // TODO: p 유효성 검사
 
   // MLFQ가 최소한 MLFQMINTICKET 만큼의 ticket을 점유해야 한다
