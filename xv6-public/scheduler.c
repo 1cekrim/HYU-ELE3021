@@ -724,9 +724,7 @@ set_cpu_share(struct proc* p, int usage)
     release(&masterscheduler.lock);
     return 0;
   }
-
-  // TODO: p 유효성 검사
-
+  
   // MLFQ가 최소한 MLFQMINTICKET 만큼의 ticket을 점유해야 한다
   int mlfqidx      = stridefindindex(&masterscheduler, (void*)SCHEDMLFQ);
   int mlfqusage    = (int)masterscheduler.pq.data[mlfqidx].usage;
