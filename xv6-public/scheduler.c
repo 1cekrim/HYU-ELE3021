@@ -220,8 +220,8 @@ mlfqinit()
   static int boostingperiod        = 100;
 
   memset(&mlfq, 0, sizeof(mlfq));
-  memmove(mlfq.quantum, quantum, NLEVEL);
-  memmove(mlfq.allotment, allotment, NLEVEL - 1);
+  memmove(mlfq.quantum, quantum, NLEVEL * sizeof(int));
+  memmove(mlfq.allotment, allotment, (NLEVEL - 1) * sizeof(int));
   mlfq.boostingperiod = boostingperiod;
 
   for (int level = 0; level < NLEVEL; ++level)
