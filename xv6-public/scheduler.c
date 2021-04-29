@@ -324,8 +324,9 @@ mlfqboost()
     int front    = mlfq.q[level].front;
     for (int i = 0; i < mlfq.q[level].qsize; ++i)
     {
-      front = (front + 1) % capacity;
-      p     = mlfq.q[level].q[front];
+      front                      = (front + 1) % capacity;
+      p                          = mlfq.q[level].q[front];
+      p->schedule.executionticks = 0;
       mlfqenqueue(0, p);
     }
     mlfq.q[level].front = -1;
@@ -384,6 +385,7 @@ mlfqnext(struct proc* p, uint start, uint end)
     assert(mlfqrotatetotarget(level, p) == QFAILURE, "rotate failure");
     assert(mlfqdequeue(level) == QFAILURE, "mlfqpop failure");
     assert(mlfqenqueue(level + 1, p) == QFAILURE, "mlfqpush failure");
+    p->schedule.executionticks = 0;
     return 1;
   }
 
@@ -724,7 +726,7 @@ set_cpu_share(struct proc* p, int usage)
     release(&masterscheduler.lock);
     return 0;
   }
-  
+
   // MLFQ가 최소한 MLFQMINTICKET 만큼의 ticket을 점유해야 한다
   int mlfqidx      = stridefindindex(&masterscheduler, (void*)SCHEDMLFQ);
   int mlfqusage    = (int)masterscheduler.pq.data[mlfqidx].usage;
