@@ -116,3 +116,43 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_thread_exit(void)
+{
+  void* retval;
+
+  if (argptr(0, &retval, sizeof(retval)) < 0)
+    return -1;
+  
+  thread_exit(retval);
+
+  return 0;
+}
+
+int
+sys_thread_create(void)
+{
+  int n;
+  thread_t* thread;
+  void* (*start_routine)(void*);
+  void* arg;
+
+  if (argptr(0, &thread, sizeof(thread)) < 0 || argptr(0, &start_routine, sizeof(start_routine)) < 0 || argptr(0, &arg, sizeof(arg)) < 0)
+    return -1;
+
+  return thread_create(thread);
+}
+
+int
+sys_thread_join(void)
+{
+  int n;
+  thread_t thread;
+  void** retval;
+
+  if (argint(0, &thread) < 0 || argptr(1, &retval, sizeof(&retval)))
+    return -1;
+  
+  return thread_join(thread, retval);
+}
