@@ -82,6 +82,7 @@ struct proc
   struct linked_list pgroup;
   struct proc* pgroup_master;
   struct proc* pgroup_next_execute;
+  void* retval;
 
   struct
   {

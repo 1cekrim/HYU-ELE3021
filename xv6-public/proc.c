@@ -401,6 +401,9 @@ exit(void)
         wakeup1(initproc);
     }
   }
+
+  // TODO: abandoned thread 들도 init로 넘겨야 함
+
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();
@@ -426,7 +429,8 @@ wait(void)
         continue;
       havekids = 1;
 
-      if (p->state == ZOMBIE)
+      // 오직 pgroup master 만이 exit-wait의 대상이 될 수 있다
+      if (p->state == ZOMBIE && is_pgroup_master(p))
       {
         // Found one.
         pid = p->pid;
@@ -839,7 +843,8 @@ thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
   int lwpid = clone(args);
   if (lwpid)
   {
-    return lwpid;
+    *thread = lwpid;
+    return 0;
   }
   // child (LWP)
   // 아래처럼 동작시키려면 clone에서 thread_create를 호출한 context의 스택을 복사해야 함
@@ -854,12 +859,61 @@ thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
 void
 thread_exit(void* retval)
 {
+  acquire(&ptable.lock);
+
+  struct proc* curproc = myproc();
+  curproc->retval = retval;
+  curproc->state = ZOMBIE;
+  wakeup1((void*)curproc->pid);
+
+  sched();
+  panic("thread_exit");
 }
 
 int
 thread_join(thread_t thread, void** retval)
 {
-  return 0;
+  acquire(&ptable.lock);
+  struct proc* curproc = myproc();
+  struct proc* pgmaster = curproc->pgroup_master;
+  struct proc* p;
+  // 자기 그룹 내의 스레드만 join 할 수 있다
+  // thread에 계층 구조는 존재하지 않는다
+  for (struct linked_list* pos = pgmaster->pgroup.next; pos != &pgmaster->pgroup; pos = pos->next)
+  {
+    p = container_of(pos, struct proc, pgroup);
+    if (p->pid == thread)
+    {
+      goto found;
+    }
+  }
+
+  release(&ptable.lock);
+  return -1;
+found:
+  for(;;)
+  {
+    if (p->state == ZOMBIE)
+    {
+      *retval = p->retval;
+      kfree(p->kstack);
+      p->kstack = 0;
+      p->pid     = 0;
+      p->parent  = 0;
+      p->name[0] = 0;
+      p->killed  = 0;
+      p->state   = UNUSED;
+
+      linked_list_remove(&p->pgroup);
+      p->pgroup_master = 0;
+      p->pgroup_next_execute = 0;
+
+      release(&ptable.lock);
+      return 0;
+    }
+
+    sleep((void*)thread, &ptable.lock);
+  }
 }
 
 extern void cprintf(char* fmt, ...);
