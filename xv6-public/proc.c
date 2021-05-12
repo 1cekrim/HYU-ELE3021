@@ -652,7 +652,18 @@ procdump(void)
 int
 thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
 {
-  return 0;
+  int lwpid = clone(CLONE_THREAD);
+  if (lwpid) {
+      // parent
+      return lwpid;
+  }
+
+  // child (LWP)
+  void* ret = start_routine(arg);
+  thread_exit(ret);
+
+  panic("thread_create");
+  return -1;
 }
 
 void
