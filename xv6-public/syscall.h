@@ -27,3 +27,4 @@
 #define SYS_thread_exit   26
 #define SYS_thread_join   27
 #define SYS_gettid        28
+#define SYS_ps            29

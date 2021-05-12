@@ -665,3 +665,26 @@ thread_join(thread_t thread, void** retval)
 {
   return 0;
 }
+
+extern void cprintf(char* fmt, ...);
+
+int
+ps()
+{
+  static char* text[] = {
+    [UNUSED] "UNUSED  ",   [EMBRYO] "EMBRYO  ",  [SLEEPING] "SLEEPING",
+    [RUNNABLE] "RUNNABLE", [RUNNING] "RUNNING ", [ZOMBIE] "ZOMBIE  "
+  };
+
+  struct proc* p;
+  cprintf("PID\tLWPID\tSTATE\t\tNAME\n");
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; ++p)
+  {
+    if (p->state != UNUSED)
+    {
+      cprintf("%d\t%d\t%s\t%s\n", p->pgid, p->pid, text[p->state], p->name);
+    }
+  }
+
+  return 0;
+}

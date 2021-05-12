@@ -111,6 +111,7 @@ extern int sys_set_cpu_share(void);
 extern int sys_thread_create(void);
 extern int sys_thread_exit(void);
 extern int sys_thread_join(void);
+extern int sys_ps(void);
 
 static int (*syscalls[])(void) = { [SYS_fork] sys_fork,
                                    [SYS_exit] sys_exit,
@@ -139,7 +140,8 @@ static int (*syscalls[])(void) = { [SYS_fork] sys_fork,
                                    [SYS_set_cpu_share] sys_set_cpu_share,
                                    [SYS_thread_create] sys_thread_create,
                                    [SYS_thread_exit] sys_thread_exit,
-                                   [SYS_thread_join] sys_thread_join };
+                                   [SYS_thread_join] sys_thread_join,
+                                   [SYS_ps] sys_ps };
 
 void
 syscall(void)

@@ -33,6 +33,7 @@ int getlev(void);
 int thread_create(thread_t*, void* (*)(void*), void*);
 void thread_exit(void*);
 int thread_join(thread_t, void**);
+int ps();
 
 // ulib.c
 int stat(const char*, struct stat*);
