@@ -215,8 +215,8 @@ mlfqprint()
 void
 mlfqinit()
 {
-  static int quantum[NLEVEL]       = { 1, 2, 4 };
-  static int allotment[NLEVEL - 1] = { 5, 10 };
+  static int quantum[NLEVEL]       = { 5, 10, 20 };
+  static int allotment[NLEVEL - 1] = { 20, 40 };
   static int boostingperiod        = 100;
 
   memset(&mlfq, 0, sizeof(mlfq));

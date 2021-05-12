@@ -115,6 +115,7 @@ found:
 
   p->pgroup_master = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
   p->pgid          = p->pgroup_master->pid;
+  linked_list_init(&p->pgroup);
 
   // p가 pgroup_master일 경우 mlfq에 p 추가
   // 최대 process 개수 == mlfq level 0의 크기
@@ -463,6 +464,10 @@ int ps(void);
 void
 swtch_pgroup(struct proc* old_lwp, struct proc* new_lwp)
 {
+  if (new_lwp->state != RUNNABLE)
+  {
+    panic("invalid new_lwp");
+  }
   if (new_lwp == 0)
   {
     panic("swtch_pgroup: no process");
@@ -473,10 +478,12 @@ swtch_pgroup(struct proc* old_lwp, struct proc* new_lwp)
     panic("swtch_pgroup: no kstack");
   }
 
+  new_lwp->state = RUNNING;
+
   // kstack만 전환하면 됨
   pushcli();
-  mycpu()->proc = new_lwp;
   mycpu()->ts.esp0 = (uint)new_lwp->kstack + KSTACKSIZE;
+  mycpu()->proc = new_lwp;
   popcli();
 
   int intena = mycpu()->intena;
@@ -508,7 +515,8 @@ pgroup_scheduler(struct proc* pgmaster)
 void
 pgroup_itq_timer(void)
 {
-  struct proc* pgmaster = myproc()->pgroup_master;
+  struct proc* curproc = myproc();
+  struct proc* pgmaster = curproc->pgroup_master;
   // single thread이거나, time quantum을 넘어 scheduling이 필요할 경우
   if (linked_list_is_empty(&pgmaster->pgroup) || isexhaustedprocess(pgmaster))
   {
@@ -517,18 +525,23 @@ pgroup_itq_timer(void)
   }
 
   acquire(&ptable.lock);
-  // round robin
+  
+  // myproc을 RUNNABLE 하게 변경
+  curproc->state = RUNNABLE;
+
+  // round robin으로 다음 타겟을 선정
   struct proc* target = pgroup_scheduler(pgmaster);
 
-  // pgroup에 runnable한 프로세스가 없을 경우
+  // pgroup에 runnable한 프로세스가 없을 경우 (발생하지 않음)
   if (!target)
   {
+    sched();
     release(&ptable.lock);
-    yield();
+    return;
   }
 
   pgmaster->schedule.selected_proc = target;
-  swtch_pgroup(myproc(), target);
+  swtch_pgroup(curproc, target);
   release(&ptable.lock);
 }
 
@@ -560,7 +573,6 @@ scheduler(void)
   {
     // Enable interrupts on this processor.
     sti();
-
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
