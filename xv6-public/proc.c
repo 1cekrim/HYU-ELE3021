@@ -16,6 +16,9 @@ struct
 
 static struct proc* initproc;
 
+// TODO: linked_list를 thread-safe하게 만들어야 함
+struct spinlock pgroup_lock;
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -27,6 +30,7 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  initlock(&pgroup_lock, "pgroup");
   mlfqinit();
 }
 
@@ -222,23 +226,77 @@ clone(enum CLONEMODE mode)
     return -1;
   }
 
-  linked_list_init(&np->pgroup);
-
-  // Copy process state from proc.
-  if ((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0)
+  // VM, stack 영역 공유
+  if (CLONE_THREAD & mode)
   {
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state  = UNUSED;
-    acquire(&ptable.lock);
-    schedremoveproc(np);
-    release(&ptable.lock);
-    return -1;
-  }
-  np->sz     = curproc->sz;
-  np->parent = curproc;
-  *np->tf    = *curproc->tf;
+    // pgroup_master
+    struct proc* pgmaster = np->pgroup_master;
 
+    // pgroup_master의 pgroup에 np를 추가
+    // TODO: lock 범위 수정 or linked_list를 thread-safe하게
+    acquire(&pgroup_lock);
+    linked_list_init(&np->pgroup);
+    linked_list_push_back(&np->pgroup, &pgmaster->pgroup);
+
+    // np->pgdir == np->pgdir
+    np->pgdir = pgmaster->pgdir;
+    
+    // alloc stack
+    // TODO: 스레드에서 stack 늘리면 어떻게 됨??
+    // TODO: 스레드가 exit 된 다음에 해당 영역 재사용 필요
+    np->sz = allocuvm(pgmaster->pgdir, pgmaster->sz, pgmaster->sz + 2 * PGSIZE);
+    if (!np->sz)
+    {
+      // ROLLBACK
+      kfree(np->kstack);
+      np->kstack = 0;
+      np->state  = UNUSED;
+      linked_list_remove(&np->pgroup);
+      release(&pgroup_lock);
+      return -1;
+    }
+    
+    release(&pgroup_lock);
+
+    // | ---------- |  <- np->sz
+    // |  new stack |
+    // | ---------- |  <- np->sz - 1 * PGSIZE
+    // |  guard     |  
+    // | ---------- |  <- np->sz - 2 * PGSIZE
+    // |  stack     |
+    // | ---------- |
+    clearpteu(pgmaster->pgdir, (char*)(np->sz - 2 * PGSIZE));
+
+    // stack 영역을 공유함
+    pgmaster->sz = np->sz;
+    
+    // parent 같음
+    np->parent = pgmaster->parent;
+
+    // trapframe 복사
+    *np->tf = *pgmaster->tf;
+  }
+  else
+  {
+    // init는 thread-safe함
+    linked_list_init(&np->pgroup);
+
+    // Copy process state from proc.
+    if ((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0)
+    {
+      kfree(np->kstack);
+      np->kstack = 0;
+      np->state  = UNUSED;
+      acquire(&ptable.lock);
+      schedremoveproc(np);
+      release(&ptable.lock);
+      return -1;
+    }
+
+    np->sz     = curproc->sz;
+    np->parent = curproc;
+    *np->tf    = *curproc->tf;
+  }
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
