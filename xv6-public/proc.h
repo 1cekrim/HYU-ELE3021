@@ -84,10 +84,12 @@ struct proc
 
   struct
   {
+    uint lastscheduledtick;
     uint executionticks;
     int level;
     int yield;
     enum schedulerenum sched;
+    struct proc* selected_proc;
   } schedule;
 };
 

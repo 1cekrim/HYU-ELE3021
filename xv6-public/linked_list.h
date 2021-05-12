@@ -4,7 +4,7 @@
 #include "defs.h"
 
 #define container_of(ptr, type, member) \
-  ((type *)((char *)(ptr) - ((size_t) &((type *)0)->member)))
+  ((type *)((char *)(ptr) - ((uint) &((type *)0)->member)))
 
 struct linked_list
 {
@@ -61,7 +61,7 @@ linked_list_remove(struct linked_list* node)
 static inline int
 linked_list_is_empty(struct linked_list* head)
 {
-  return head->prev == head->next;
+  return head->next == head;
 }
 
 #endif /* __LINKED_LIST_H__ */

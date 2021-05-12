@@ -33,6 +33,8 @@ struct stridescheduler
   struct spinlock lock;
 };
 
+int isexhaustedprocess(struct proc*);
+
 void mlfqinit();
 int mlfqpush(struct proc*);
 struct proc* mlfqtop();

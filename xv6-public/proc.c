@@ -19,6 +19,13 @@ static struct proc* initproc;
 // TODO: linked_list를 thread-safe하게 만들어야 함
 struct spinlock pgroup_lock;
 
+struct clone_args
+{
+  enum CLONEMODE mode;
+  void* (*start_routine)(void*);
+  void* args;
+};
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -117,6 +124,8 @@ found:
     panic("allocproc: mlfqpush failure");
   }
 
+  p->schedule.selected_proc = p;
+
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -214,11 +223,16 @@ growproc(int n)
 }
 
 int
-clone(enum CLONEMODE mode)
+clone(struct clone_args args)
 {
   int i, pid;
   struct proc* np;
   struct proc* curproc = myproc();
+
+  enum CLONEMODE mode = args.mode;
+  void* (*start_routine)(void*) = args.start_routine;
+  void* arg = args.args;
+
 
   // Allocate process.
   if ((np = allocproc(mode)) == 0)
@@ -234,13 +248,14 @@ clone(enum CLONEMODE mode)
 
     // pgroup_master의 pgroup에 np를 추가
     // TODO: lock 범위 수정 or linked_list를 thread-safe하게
+    
     acquire(&pgroup_lock);
     linked_list_init(&np->pgroup);
     linked_list_push_back(&np->pgroup, &pgmaster->pgroup);
 
     // np->pgdir == np->pgdir
     np->pgdir = pgmaster->pgdir;
-    
+
     // alloc stack
     // TODO: 스레드에서 stack 늘리면 어떻게 됨??
     // TODO: 스레드가 exit 된 다음에 해당 영역 재사용 필요
@@ -256,12 +271,10 @@ clone(enum CLONEMODE mode)
       return -1;
     }
 
-    release(&pgroup_lock);
-
     // | ---------- |  <- np->sz
     // |  new stack |
     // | ---------- |  <- np->sz - 1 * PGSIZE
-    // |  guard     |  
+    // |  guard     |
     // | ---------- |  <- np->sz - 2 * PGSIZE
     // |  stack     |
     // | ---------- |
@@ -269,12 +282,27 @@ clone(enum CLONEMODE mode)
 
     // stack 영역을 공유함
     pgmaster->sz = np->sz;
-    
+
     // parent 같음
     np->parent = pgmaster->parent;
 
     // trapframe 복사
-    *np->tf = *pgmaster->tf;
+    // TODO: 이거 curproc 복사하는게 맞나? pgmaster꺼 복사하면 문제 생길 거 같긴 함
+    *np->tf = *curproc->tf;
+
+    // esp -> new stack으로 / eip -> start_routine으로
+    np->tf->esp = np->sz;
+    np->tf->eip = (uint)start_routine;
+
+    // start_routine(arg);
+    // return 0xdeadbeef
+    // TODO: 과제에서는 thread가 항상 exit를 호출하지만, 실제로는 그러지 않을 수 있으므로 예외처리 필요
+    np->tf->esp -= 4;
+    *((uint*)np->tf->esp) = (uint)arg;
+    np->tf->esp -= 4;
+    *((uint*)np->tf->esp) = 0xdeafbeef;
+    release(&pgroup_lock);
+
   }
   else
   {
@@ -298,8 +326,8 @@ clone(enum CLONEMODE mode)
     *np->tf    = *curproc->tf;
   }
   // Clear %eax so that fork returns 0 in the child.
-  np->tf->eax = 0;
 
+  np->tf->eax = 0;
   for (i = 0; i < NOFILE; i++)
     if (curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
@@ -308,7 +336,6 @@ clone(enum CLONEMODE mode)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
-
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
@@ -324,7 +351,12 @@ clone(enum CLONEMODE mode)
 int
 fork(void)
 {
-  return clone(CLONE_NONE);
+  struct clone_args args = {
+    .mode = CLONE_NONE,
+    .args = 0,
+    .start_routine = 0
+  };
+  return clone(args);
 }
 
 // Exit the current process.  Does not return.
@@ -425,16 +457,79 @@ wait(void)
   }
 }
 
-// timer interrupt시 호출됨
-void pgroup_scheduler(void)
+int ps(void);
+
+// pgroup 멤버들 사이의 swtch (light)
+void
+swtch_pgroup(struct proc* old_lwp, struct proc* new_lwp)
 {
-  // struct proc* pgmaster = myproc()->pgroup_master;
-  
-  // single thread
-  // if (linked_list_is_empty(&pgmaster->pgroup))
+  if (new_lwp == 0)
+  {
+    panic("swtch_pgroup: no process");
+  }
+
+  if (new_lwp->kstack == 0)
+  {
+    panic("swtch_pgroup: no kstack");
+  }
+
+  // kstack만 전환하면 됨
+  pushcli();
+  mycpu()->proc = new_lwp;
+  mycpu()->ts.esp0 = (uint)new_lwp->kstack + KSTACKSIZE;
+  popcli();
+
+  int intena = mycpu()->intena;
+  swtch(&(old_lwp->context), new_lwp->context);
+  mycpu()->intena = intena;
+}
+
+// pgroup 멤버들 대상으로 rr
+struct proc*
+pgroup_scheduler(struct proc* pgmaster)
+{
+  struct proc* selected = pgmaster->schedule.selected_proc;
+  struct proc* new_selected =
+      container_of(selected->pgroup.next, struct proc, pgroup);
+
+  while (selected != new_selected)
+  {
+    if (new_selected->state == RUNNABLE)
+    {
+      return new_selected;
+    }
+    new_selected = container_of(new_selected->pgroup.next, struct proc, pgroup);
+  }
+
+  return new_selected->state == RUNNABLE ? new_selected : 0;
+}
+
+// timer interrupt시 호출됨
+void
+pgroup_itq_timer(void)
+{
+  struct proc* pgmaster = myproc()->pgroup_master;
+  // single thread이거나, time quantum을 넘어 scheduling이 필요할 경우
+  if (linked_list_is_empty(&pgmaster->pgroup) || isexhaustedprocess(pgmaster))
   {
     yield();
+    return;
   }
+
+  acquire(&ptable.lock);
+  // round robin
+  struct proc* target = pgroup_scheduler(pgmaster);
+
+  // pgroup에 runnable한 프로세스가 없을 경우
+  if (!target)
+  {
+    release(&ptable.lock);
+    yield();
+  }
+
+  pgmaster->schedule.selected_proc = target;
+  swtch_pgroup(myproc(), target);
+  release(&ptable.lock);
 }
 
 // PAGEBREAK: 42
@@ -505,11 +600,13 @@ scheduler(void)
 
       if (p->state == RUNNABLE)
       {
-        c->proc = p;
-        switchuvm(p);
-        p->state = RUNNING;
-        start    = sys_uptime();
-        swtch(&(c->scheduler), p->context);
+        struct proc* rp = p->schedule.selected_proc;
+        c->proc         = rp;
+        switchuvm(rp);
+        rp->state                     = RUNNING;
+        start                         = sys_uptime();
+        p->schedule.lastscheduledtick = start;
+        swtch(&(c->scheduler), rp->context);
         end = sys_uptime();
         switchkvm();
       }
@@ -527,7 +624,6 @@ scheduler(void)
       default:
         panic("scheduler: invalid schedidx");
       }
-
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
@@ -582,7 +678,6 @@ forkret(void)
   static int first = 1;
   // Still holding ptable.lock from scheduler.
   release(&ptable.lock);
-
   if (first)
   {
     // Some initialization functions must be run in the context
@@ -722,17 +817,24 @@ procdump(void)
 int
 thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
 {
-  int lwpid = clone(CLONE_THREAD);
-  if (lwpid) {
-      // parent
-      return lwpid;
-  }
+  struct clone_args args = {
+    .mode = CLONE_THREAD,
+    .args = arg,
+    .start_routine = start_routine
+  };
 
+  int lwpid = clone(args);
+  if (lwpid)
+  {
+    return lwpid;
+  }
   // child (LWP)
+  // 아래처럼 동작시키려면 clone에서 thread_create를 호출한 context의 스택을 복사해야 함
+  // 그런데 구현에 실패해서 그냥 start_routine과 arg를 넘기고 스택에 직접 적도록 구현...
+  panic("thread_create");
   void* ret = start_routine(arg);
   thread_exit(ret);
 
-  panic("thread_create");
   return -1;
 }
 

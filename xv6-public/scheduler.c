@@ -407,6 +407,29 @@ mlfqnext(struct proc* p, uint start, uint end)
   return result;
 }
 
+int
+isexhaustedprocess(struct proc* p)
+{
+  if (p->killed || p->state == ZOMBIE)
+  {
+    return 1;
+  }
+
+  if (p->schedule.sched == SCHEDMLFQ)
+  {
+    return (sys_uptime() - p->schedule.lastscheduledtick) >=
+               mlfq.quantum[p->schedule.level] ||
+           p->schedule.yield || p->state == SLEEPING;
+  }
+  else
+  {
+    // TODO: stride quantum
+  }
+
+  // not reached
+  return 0;
+}
+
 struct proc*
 mlfqtop()
 {

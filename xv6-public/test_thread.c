@@ -18,10 +18,11 @@ main()
 {
   thread_t thread;
   int arg = 1;
-  int ret = thread_create(&thread, (void*)func, &arg);
+  int ret = thread_create(&thread, (void*)func, (void*)arg);
   printf(1, "ret = %d\n", ret);
   while (1)
   {
+      printf(1, "thread main\n");
   }
   exit();
 }
