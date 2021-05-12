@@ -72,13 +72,19 @@ myproc(void)
   return p;
 }
 
+static int
+is_pgroup_master(struct proc* p)
+{
+  return p->pgroup_master == p;
+}
+
 // PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
 // state required to run in the kernel.
 // Otherwise return 0.
 static struct proc*
-allocproc(void)
+allocproc(enum CLONEMODE mode)
 {
   struct proc* p;
   char* sp;
@@ -96,11 +102,13 @@ found:
   p->state = EMBRYO;
   p->pid   = nextpid++;
 
-  // mlfq에 p 추가
+  p->pgroup_master = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
+  p->pgid          = p->pgroup_master->pid;
+
+  // p가 pgroup_master일 경우 mlfq에 p 추가
   // 최대 process 개수 == mlfq level 0의 크기
   // 따라서 mlfqpush가 실패하면 logic error
-
-  if (mlfqpush(p))
+  if (is_pgroup_master(p) && mlfqpush(p))
   {
     panic("allocproc: mlfqpush failure");
   }
@@ -111,11 +119,15 @@ found:
   if ((p->kstack = kalloc()) == 0)
   {
     p->state = UNUSED;
-    acquire(&ptable.lock);
-    schedremoveproc(p);
-    release(&ptable.lock);
+    if (is_pgroup_master(p))
+    {
+      acquire(&ptable.lock);
+      schedremoveproc(p);
+      release(&ptable.lock);
+    }
     return 0;
   }
+
   sp = p->kstack + KSTACKSIZE;
 
   // Leave room for trap frame.
@@ -143,7 +155,7 @@ userinit(void)
   struct proc* p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  p = allocproc();
+  p = allocproc(CLONE_NONE);
 
   initproc = p;
   if ((p->pgdir = setupkvm()) == 0)
@@ -197,21 +209,20 @@ growproc(int n)
   return 0;
 }
 
-// Create a new process copying p as the parent.
-// Sets up stack to return as if from system call.
-// Caller must set state of returned proc to RUNNABLE.
 int
-fork(void)
+clone(enum CLONEMODE mode)
 {
   int i, pid;
   struct proc* np;
   struct proc* curproc = myproc();
 
   // Allocate process.
-  if ((np = allocproc()) == 0)
+  if ((np = allocproc(mode)) == 0)
   {
     return -1;
   }
+
+  linked_list_init(&np->pgroup);
 
   // Copy process state from proc.
   if ((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0)
@@ -247,6 +258,15 @@ fork(void)
   release(&ptable.lock);
 
   return pid;
+}
+
+// Create a new process copying p as the parent.
+// Sets up stack to return as if from system call.
+// Caller must set state of returned proc to RUNNABLE.
+int
+fork(void)
+{
+  return clone(CLONE_NONE);
 }
 
 // Exit the current process.  Does not return.
@@ -632,6 +652,7 @@ procdump(void)
 int
 thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
 {
+  return 0;
 }
 
 void
@@ -642,4 +663,5 @@ thread_exit(void* retval)
 int
 thread_join(thread_t thread, void** retval)
 {
+  return 0;
 }

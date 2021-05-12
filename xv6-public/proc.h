@@ -48,10 +48,17 @@ enum procstate
   RUNNING,
   ZOMBIE
 };
+
 enum schedulerenum
 {
   SCHEDMLFQ,
   SCHEDSTRIDE
+};
+
+enum CLONEMODE
+{
+  CLONE_NONE = 1,
+  CLONE_THREAD = 2
 };
 
 // Per-process state
