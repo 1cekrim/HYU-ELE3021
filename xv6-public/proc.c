@@ -113,6 +113,7 @@ found:
   p->state = EMBRYO;
   p->pid   = nextpid++;
 
+  p->pgroup_next_execute = p;
   p->pgroup_master = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
   p->pgid          = p->pgroup_master->pid;
   linked_list_init(&p->pgroup);
@@ -124,8 +125,6 @@ found:
   {
     panic("allocproc: mlfqpush failure");
   }
-
-  p->schedule.selected_proc = p;
 
   release(&ptable.lock);
 
@@ -495,7 +494,7 @@ swtch_pgroup(struct proc* old_lwp, struct proc* new_lwp)
 struct proc*
 pgroup_scheduler(struct proc* pgmaster)
 {
-  struct proc* selected = pgmaster->schedule.selected_proc;
+  struct proc* selected = myproc();
   struct proc* new_selected =
       container_of(selected->pgroup.next, struct proc, pgroup);
 
@@ -540,7 +539,7 @@ pgroup_itq_timer(void)
     return;
   }
 
-  pgmaster->schedule.selected_proc = target;
+  pgmaster->pgroup_next_execute = target;
   swtch_pgroup(curproc, target);
   release(&ptable.lock);
 }
@@ -612,7 +611,7 @@ scheduler(void)
 
       if (p->state == RUNNABLE)
       {
-        struct proc* rp = p->schedule.selected_proc;
+        struct proc* rp = p->pgroup_next_execute;
         c->proc         = rp;
         switchuvm(rp);
         rp->state                     = RUNNING;

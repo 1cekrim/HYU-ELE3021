@@ -81,6 +81,7 @@ struct proc
   int pgid;
   struct linked_list pgroup;
   struct proc* pgroup_master;
+  struct proc* pgroup_next_execute;
 
   struct
   {
@@ -89,7 +90,6 @@ struct proc
     int level;
     int yield;
     enum schedulerenum sched;
-    struct proc* selected_proc;
   } schedule;
 };
 
