@@ -552,7 +552,7 @@ pgroup_itq_timer(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
-int is_runnable(struct proc*);
+struct proc* get_runnable(struct proc*);
 extern struct stridescheduler mainstride;
 extern struct stridescheduler masterscheduler;
 void
@@ -610,9 +610,10 @@ scheduler(void)
       uint start = 0;
       uint end   = 0;
 
-      if (p->pgroup_next_execute->state == RUNNABLE)
+      struct proc* rp = get_runnable(p->pgroup_next_execute);
+      if (rp)
       {
-        struct proc* rp = p->pgroup_next_execute;
+        p->pgroup_next_execute = rp;
         c->proc         = rp;
         switchuvm(rp);
         rp->state                     = RUNNING;
