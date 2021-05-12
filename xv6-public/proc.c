@@ -255,7 +255,7 @@ clone(enum CLONEMODE mode)
       release(&pgroup_lock);
       return -1;
     }
-    
+
     release(&pgroup_lock);
 
     // | ---------- |  <- np->sz
@@ -422,6 +422,18 @@ wait(void)
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock); // DOC: wait-sleep
+  }
+}
+
+// timer interrupt시 호출됨
+void pgroup_scheduler(void)
+{
+  // struct proc* pgmaster = myproc()->pgroup_master;
+  
+  // single thread
+  // if (linked_list_is_empty(&pgmaster->pgroup))
+  {
+    yield();
   }
 }
 

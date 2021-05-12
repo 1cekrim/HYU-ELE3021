@@ -58,4 +58,10 @@ linked_list_remove(struct linked_list* node)
     node->prev = 0;
 }
 
+static inline int
+linked_list_is_empty(struct linked_list* head)
+{
+  return head->prev == head->next;
+}
+
 #endif /* __LINKED_LIST_H__ */
