@@ -12,14 +12,14 @@ struct linked_list
   struct linked_list* next;
 };
 
-void
+static inline void
 linked_list_init(struct linked_list* ll)
 {
   ll->prev = ll;
   ll->next = ll;
 }
 
-void
+static inline void
 linked_list_insert(struct linked_list* node, struct linked_list* prev,
                    struct linked_list* next)
 {
@@ -29,7 +29,7 @@ linked_list_insert(struct linked_list* node, struct linked_list* prev,
   next->prev = node;
 }
 
-void
+static inline void
 linked_list_push_front(struct linked_list* node, struct linked_list* head)
 {
     if (node->next != node || node->prev != node)
@@ -39,7 +39,7 @@ linked_list_push_front(struct linked_list* node, struct linked_list* head)
     linked_list_insert(node, head, head->next);
 }
 
-void
+static inline void
 linked_list_push_back(struct linked_list* node, struct linked_list* head)
 {
     if (node->next != node || node->prev != node)
@@ -49,7 +49,7 @@ linked_list_push_back(struct linked_list* node, struct linked_list* head)
     linked_list_insert(node, head->prev, head);
 }
 
-void
+static inline void
 linked_list_remove(struct linked_list* node)
 {
     node->next->prev = node->prev;
