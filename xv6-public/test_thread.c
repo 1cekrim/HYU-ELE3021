@@ -22,7 +22,7 @@ main()
   printf(1, "ret = %d\n", ret);
   while (1)
   {
-      printf(1, "thread main\n");
+      printf(1, "main thread\n");
   }
   exit();
 }
