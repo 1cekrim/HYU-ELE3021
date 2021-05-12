@@ -91,6 +91,7 @@ extern int sys_exit(void);
 extern int sys_fork(void);
 extern int sys_fstat(void);
 extern int sys_getpid(void);
+extern int sys_gettid(void);
 extern int sys_kill(void);
 extern int sys_link(void);
 extern int sys_mkdir(void);
@@ -107,9 +108,9 @@ extern int sys_uptime(void);
 extern int sys_getlev(void);
 extern int sys_yield(void);
 extern int sys_set_cpu_share(void);
-extern int sys_thread_create(int);
-extern int sys_thread_exit(int);
-extern int sys_thread_join(int);
+extern int sys_thread_create(void);
+extern int sys_thread_exit(void);
+extern int sys_thread_join(void);
 
 static int (*syscalls[])(void) = { [SYS_fork] sys_fork,
                                    [SYS_exit] sys_exit,
@@ -122,6 +123,7 @@ static int (*syscalls[])(void) = { [SYS_fork] sys_fork,
                                    [SYS_chdir] sys_chdir,
                                    [SYS_dup] sys_dup,
                                    [SYS_getpid] sys_getpid,
+                                   [SYS_gettid] sys_gettid,
                                    [SYS_sbrk] sys_sbrk,
                                    [SYS_sleep] sys_sleep,
                                    [SYS_uptime] sys_uptime,
