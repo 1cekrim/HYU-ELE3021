@@ -116,6 +116,25 @@ pqtop(struct priorityqueue* pq)
   return pq->data[0];
 }
 
+int
+is_runnable(struct proc* p)
+{
+  if (p->state == RUNNABLE)
+  {
+    return 1;
+  }
+
+  for (struct linked_list * pos = &p->pgroup; pos != &p->pgroup; pos = pos->next)
+  {
+    if (container_of(pos, struct proc, pgroup)->state == RUNNABLE)
+    {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 void
 pqshiftup(struct priorityqueue* pq, int index)
 {
@@ -451,7 +470,7 @@ mlfqtop()
       it = mlfqueuetop(level);
       assert(!it, "invalid top");
 
-      if (it->state == RUNNABLE)
+      if (is_runnable(it))
       {
         return it;
       }
@@ -574,7 +593,7 @@ stridetop(struct stridescheduler* ss)
     for (int i = 0; i < ss->pq.size; ++i)
     {
       if (ss->pq.data[i].key <= minvalue &&
-          ((struct proc*)ss->pq.data[i].value)->state == RUNNABLE)
+          is_runnable((struct proc*)ss->pq.data[i].value))
       {
         minvalue = ss->pq.data[i].key;
         minidx   = i;

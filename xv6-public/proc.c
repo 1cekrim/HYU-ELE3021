@@ -302,7 +302,6 @@ clone(struct clone_args args)
     np->tf->esp -= 4;
     *((uint*)np->tf->esp) = 0xdeafbeef;
     release(&pgroup_lock);
-
   }
   else
   {
@@ -534,6 +533,7 @@ pgroup_itq_timer(void)
   // pgroup에 runnable한 프로세스가 없을 경우 (발생하지 않음)
   if (!target)
   {
+    panic("no...");
     sched();
     release(&ptable.lock);
     return;
@@ -552,6 +552,7 @@ pgroup_itq_timer(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+int is_runnable(struct proc*);
 extern struct stridescheduler mainstride;
 extern struct stridescheduler masterscheduler;
 void
@@ -609,7 +610,7 @@ scheduler(void)
       uint start = 0;
       uint end   = 0;
 
-      if (p->state == RUNNABLE)
+      if (p->pgroup_next_execute->state == RUNNABLE)
       {
         struct proc* rp = p->pgroup_next_execute;
         c->proc         = rp;
