@@ -41,6 +41,20 @@ pinit(void)
   mlfqinit();
 }
 
+void
+dump_pgroup(struct proc* head)
+{
+  struct proc* p = head->pgroup_master;
+  cprintf("%d", p->pid);
+  for (struct linked_list* pos = p->pgroup.next; pos != &head->pgroup;
+       pos                     = pos->next)
+  {
+    p = container_of(pos, struct proc, pgroup);
+    cprintf("->%d", p->pid);
+  }
+  cprintf("\n");
+}
+
 // Must be called with interrupts disabled
 int
 cpuid()
@@ -114,8 +128,8 @@ found:
   p->pid   = nextpid++;
 
   p->pgroup_next_execute = p;
-  p->pgroup_master = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
-  p->pgid          = p->pgroup_master->pid;
+  p->pgroup_master       = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
+  p->pgid                = p->pgroup_master->pid;
   linked_list_init(&p->pgroup);
 
   // p가 pgroup_master일 경우 mlfq에 p 추가
@@ -229,10 +243,9 @@ clone(struct clone_args args)
   struct proc* np;
   struct proc* curproc = myproc();
 
-  enum CLONEMODE mode = args.mode;
+  enum CLONEMODE mode           = args.mode;
   void* (*start_routine)(void*) = args.start_routine;
-  void* arg = args.args;
-
+  void* arg                     = args.args;
 
   // Allocate process.
   if ((np = allocproc(mode)) == 0)
@@ -248,8 +261,8 @@ clone(struct clone_args args)
 
     // pgroup_master의 pgroup에 np를 추가
     // TODO: lock 범위 수정 or linked_list를 thread-safe하게
-    
-    acquire(&pgroup_lock);
+
+    acquire(&ptable.lock);
     linked_list_init(&np->pgroup);
     linked_list_push_back(&np->pgroup, &pgmaster->pgroup);
 
@@ -267,7 +280,7 @@ clone(struct clone_args args)
       np->kstack = 0;
       np->state  = UNUSED;
       linked_list_remove(&np->pgroup);
-      release(&pgroup_lock);
+      release(&ptable.lock);
       return -1;
     }
 
@@ -287,7 +300,8 @@ clone(struct clone_args args)
     np->parent = pgmaster->parent;
 
     // trapframe 복사
-    // TODO: 이거 curproc 복사하는게 맞나? pgmaster꺼 복사하면 문제 생길 거 같긴 함
+    // TODO: 이거 curproc 복사하는게 맞나? pgmaster꺼 복사하면 문제 생길 거 같긴
+    // 함
     *np->tf = *curproc->tf;
 
     // esp -> new stack으로 / eip -> start_routine으로
@@ -296,12 +310,13 @@ clone(struct clone_args args)
 
     // start_routine(arg);
     // return 0xdeadbeef
-    // TODO: 과제에서는 thread가 항상 exit를 호출하지만, 실제로는 그러지 않을 수 있으므로 예외처리 필요
+    // TODO: 과제에서는 thread가 항상 exit를 호출하지만, 실제로는 그러지 않을 수
+    // 있으므로 예외처리 필요
     np->tf->esp -= 4;
     *((uint*)np->tf->esp) = (uint)arg;
     np->tf->esp -= 4;
     *((uint*)np->tf->esp) = 0xdeafbeef;
-    release(&pgroup_lock);
+    release(&ptable.lock);
   }
   else
   {
@@ -350,11 +365,9 @@ clone(struct clone_args args)
 int
 fork(void)
 {
-  struct clone_args args = {
-    .mode = CLONE_NONE,
-    .args = 0,
-    .start_routine = 0
-  };
+  struct clone_args args = { .mode          = CLONE_NONE,
+                             .args          = 0,
+                             .start_routine = 0 };
   return clone(args);
 }
 
@@ -485,7 +498,7 @@ swtch_pgroup(struct proc* old_lwp, struct proc* new_lwp)
   // kstack만 전환하면 됨
   pushcli();
   mycpu()->ts.esp0 = (uint)new_lwp->kstack + KSTACKSIZE;
-  mycpu()->proc = new_lwp;
+  mycpu()->proc    = new_lwp;
   popcli();
 
   int intena = mycpu()->intena;
@@ -517,7 +530,7 @@ pgroup_scheduler(struct proc* pgmaster)
 void
 pgroup_itq_timer(void)
 {
-  struct proc* curproc = myproc();
+  struct proc* curproc  = myproc();
   struct proc* pgmaster = curproc->pgroup_master;
   // single thread이거나, time quantum을 넘어 scheduling이 필요할 경우
   if (linked_list_is_empty(&pgmaster->pgroup) || isexhaustedprocess(pgmaster))
@@ -527,7 +540,7 @@ pgroup_itq_timer(void)
   }
 
   acquire(&ptable.lock);
-  
+
   // myproc을 RUNNABLE 하게 변경
   curproc->state = RUNNABLE;
 
@@ -618,7 +631,7 @@ scheduler(void)
       if (rp)
       {
         p->pgroup_next_execute = rp;
-        c->proc         = rp;
+        c->proc                = rp;
         switchuvm(rp);
         rp->state                     = RUNNING;
         start                         = sys_uptime();
@@ -834,12 +847,9 @@ procdump(void)
 int
 thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
 {
-  struct clone_args args = {
-    .mode = CLONE_THREAD,
-    .args = arg,
-    .start_routine = start_routine
-  };
-
+  struct clone_args args = { .mode          = CLONE_THREAD,
+                             .args          = arg,
+                             .start_routine = start_routine };
   int lwpid = clone(args);
   if (lwpid)
   {
@@ -847,8 +857,9 @@ thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
     return 0;
   }
   // child (LWP)
-  // 아래처럼 동작시키려면 clone에서 thread_create를 호출한 context의 스택을 복사해야 함
-  // 그런데 구현에 실패해서 그냥 start_routine과 arg를 넘기고 스택에 직접 적도록 구현...
+  // 아래처럼 동작시키려면 clone에서 thread_create를 호출한 context의 스택을
+  // 복사해야 함 그런데 구현에 실패해서 그냥 start_routine과 arg를 넘기고 스택에
+  // 직접 적도록 구현...
   panic("thread_create");
   void* ret = start_routine(arg);
   thread_exit(ret);
@@ -862,8 +873,8 @@ thread_exit(void* retval)
   acquire(&ptable.lock);
 
   struct proc* curproc = myproc();
-  curproc->retval = retval;
-  curproc->state = ZOMBIE;
+  curproc->retval      = retval;
+  curproc->state       = ZOMBIE;
   wakeup1((void*)curproc->pid);
 
   sched();
@@ -874,12 +885,13 @@ int
 thread_join(thread_t thread, void** retval)
 {
   acquire(&ptable.lock);
-  struct proc* curproc = myproc();
+  struct proc* curproc  = myproc();
   struct proc* pgmaster = curproc->pgroup_master;
   struct proc* p;
   // 자기 그룹 내의 스레드만 join 할 수 있다
   // thread에 계층 구조는 존재하지 않는다
-  for (struct linked_list* pos = pgmaster->pgroup.next; pos != &pgmaster->pgroup; pos = pos->next)
+  for (struct linked_list* pos       = pgmaster->pgroup.next;
+       pos != &pgmaster->pgroup; pos = pos->next)
   {
     p = container_of(pos, struct proc, pgroup);
     if (p->pid == thread)
@@ -891,13 +903,13 @@ thread_join(thread_t thread, void** retval)
   release(&ptable.lock);
   return -1;
 found:
-  for(;;)
+  for (;;)
   {
     if (p->state == ZOMBIE)
     {
       *retval = p->retval;
       kfree(p->kstack);
-      p->kstack = 0;
+      p->kstack  = 0;
       p->pid     = 0;
       p->parent  = 0;
       p->name[0] = 0;
@@ -905,13 +917,13 @@ found:
       p->state   = UNUSED;
 
       linked_list_remove(&p->pgroup);
-      p->pgroup_master = 0;
+      p->pgroup_master       = 0;
       p->pgroup_next_execute = 0;
 
       release(&ptable.lock);
       return 0;
     }
-
+    
     sleep((void*)thread, &ptable.lock);
   }
 }
