@@ -1,6 +1,8 @@
 #ifndef __PROC_H__
 #define __PROC_H__
 
+#include "linked_list.h"
+
 // Per-CPU state
 struct cpu
 {
@@ -68,6 +70,10 @@ struct proc
   struct file* ofile[NOFILE]; // Open files
   struct inode* cwd;          // Current directory
   char name[16];              // Process name (debugging)
+
+  struct linked_list pgroup;
+  struct proc* pgroup_master;
+
   struct
   {
     uint executionticks;
