@@ -71,6 +71,7 @@ struct proc
   struct inode* cwd;          // Current directory
   char name[16];              // Process name (debugging)
 
+  int pgid;
   struct linked_list pgroup;
   struct proc* pgroup_master;
 
