@@ -4,7 +4,7 @@
 #include "defs.h"
 
 #define container_of(ptr, type, member) \
-  ((type *)((char *)(ptr) - ((uint) &((type *)0)->member)))
+  ((type*)((char*)(ptr) - ((uint) & ((type*)0)->member)))
 
 struct linked_list
 {
@@ -32,30 +32,31 @@ linked_list_insert(struct linked_list* node, struct linked_list* prev,
 static inline void
 linked_list_push_front(struct linked_list* node, struct linked_list* head)
 {
-    if (node->next != node || node->prev != node)
-    {
-        panic("llpf: invalid node");
-    }
-    linked_list_insert(node, head, head->next);
+  if (node->next != node || node->prev != node)
+  {
+    panic("llpf: invalid node");
+  }
+  linked_list_insert(node, head, head->next);
 }
 
 static inline void
 linked_list_push_back(struct linked_list* node, struct linked_list* head)
 {
-    if (node->next != node || node->prev != node)
-    {
-        panic("llpb: invalid node");
-    }
-    linked_list_insert(node, head->prev, head);
+  if (node->next != node || node->prev != node)
+  {
+    cprintf("%p <- %p -> %p", node->prev, node, node->next);
+    panic("llpb: invalid node");
+  }
+  linked_list_insert(node, head->prev, head);
 }
 
 static inline void
 linked_list_remove(struct linked_list* node)
 {
-    node->next->prev = node->prev;
-    node->prev->next = node->next;
-    node->next = 0;
-    node->prev = 0;
+  node->next->prev = node->prev;
+  node->prev->next = node->next;
+  node->next       = 0;
+  node->prev       = 0;
 }
 
 static inline int
