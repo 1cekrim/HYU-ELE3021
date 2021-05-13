@@ -16,7 +16,6 @@ struct
 
 static struct proc* initproc;
 
-
 struct clone_args
 {
   enum CLONEMODE mode;
@@ -31,7 +30,7 @@ extern void trapret(void);
 extern int sys_uptime(void);
 
 static void wakeup1(void* chan);
-
+int ps(void);
 void
 pinit(void)
 {
@@ -108,9 +107,9 @@ is_pgroup_have_pid(struct proc* node, int pid)
   {
     return 1;
   }
-  
-  for (struct linked_list* pos       = node->pgroup.next;
-      pos != &node->pgroup; pos = pos->next)
+
+  for (struct linked_list* pos = node->pgroup.next; pos != &node->pgroup;
+       pos                     = pos->next)
   {
     struct proc* p = container_of(pos, struct proc, pgroup);
     if (p->pid == pid)
@@ -127,8 +126,12 @@ is_pgroup_have_pid(struct proc* node, int pid)
 // If found, change state to EMBRYO and initialize
 // state required to run in the kernel.
 // Otherwise return 0.
-#define ACQUIRE if (lock) acquire(lock)
-#define RELEASE if (lock) release(lock)
+#define ACQUIRE \
+  if (lock)     \
+  acquire(lock)
+#define RELEASE \
+  if (lock)     \
+  release(lock)
 static struct proc*
 allocproc(enum CLONEMODE mode, struct spinlock* lock)
 {
@@ -142,7 +145,6 @@ allocproc(enum CLONEMODE mode, struct spinlock* lock)
       goto found;
 
   RELEASE;
-  cprintf("no space");
   return 0;
 
 found:
@@ -269,7 +271,7 @@ clone(struct clone_args args)
   enum CLONEMODE mode           = args.mode;
   void* (*start_routine)(void*) = args.start_routine;
   void* arg                     = args.args;
-  struct spinlock* lock = args.lock;
+  struct spinlock* lock         = args.lock;
 
   // Allocate process.
   if ((np = allocproc(mode, args.lock)) == 0)
@@ -296,8 +298,10 @@ clone(struct clone_args args)
     // alloc stack
     // TODO: 스레드에서 stack 늘리면 어떻게 됨??
     // TODO: 스레드가 exit 된 다음에 해당 영역 재사용 필요
-    // np->sz = allocuvm(pgmaster->pgdir, pgmaster->sz, pgmaster->sz + 2 * PGSIZE);
-    np->sz = allocpageuvm(pgmaster->pgdir, &pgmaster->stackbin, pgmaster->sz, 2);
+    // np->sz = allocuvm(pgmaster->pgdir, pgmaster->sz, pgmaster->sz + 2 *
+    // PGSIZE);
+    np->sz =
+        allocpageuvm(pgmaster->pgdir, &pgmaster->stackbin, pgmaster->sz, 2);
     if (!np->sz)
     {
       // ROLLBACK
@@ -398,8 +402,8 @@ fork(void)
 {
   struct clone_args args = { .mode          = CLONE_NONE,
                              .args          = 0,
-                             .start_routine = 0 ,
-                             .lock = &ptable.lock};
+                             .start_routine = 0,
+                             .lock          = &ptable.lock };
   return clone(args);
 }
 
@@ -451,6 +455,14 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   pgmaster->state = ZOMBIE;
+
+  // pgroup 전체를 ZOMBIE로 만듦 (exit된 thread가 동작하는 것을 방지)
+  for (struct linked_list* pos       = pgmaster->pgroup.next;
+       pos != &pgmaster->pgroup; pos = pos->next)
+  {
+    container_of(pos, struct proc, pgroup)->state = ZOMBIE;
+  }
+
   sched();
   panic("zombie exit");
 }
@@ -479,15 +491,41 @@ wait(void)
       {
         // Found one.
         pid = p->pid;
+
+        // free kstack
         kfree(p->kstack);
         p->kstack = 0;
+
+        // free vm
         freevm(p->pgdir);
+
+        // free threads
+        for (struct linked_list* pos = p->pgroup.next; pos != &p->pgroup;
+             pos                     = pos->next)
+        {
+          struct proc* t = container_of(pos, struct proc, pgroup);
+          kfree(t->kstack);
+          t->kstack  = 0;
+          t->pid     = 0;
+          t->pgid    = 0;
+          t->parent  = 0;
+          t->name[0] = 0;
+          set_killed(t, 0);
+          t->state = UNUSED;
+
+          // linked_list_init(&t->pgroup);
+          t->pgroup_master       = 0;
+          t->pgroup_next_execute = 0;
+        }
+
         p->pid     = 0;
         p->parent  = 0;
         p->name[0] = 0;
         set_killed(p, 0);
-        p->state   = UNUSED;
+        p->state = UNUSED;
         schedremoveproc(p);
+        p->pgroup_master       = 0;
+        p->pgroup_next_execute = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -504,8 +542,6 @@ wait(void)
     sleep(pgmaster, &ptable.lock); // DOC: wait-sleep
   }
 }
-
-int ps(void);
 
 // pgroup 멤버들 사이의 swtch (light)
 void
@@ -552,14 +588,16 @@ swtch_pgroup(struct proc* old_lwp, struct proc* new_lwp)
 //     {
 //       return new_selected;
 //     }
-//     new_selected = container_of(new_selected->pgroup.next, struct proc, pgroup);
+//     new_selected = container_of(new_selected->pgroup.next, struct proc,
+//     pgroup);
 //   }
 
 //   return new_selected->state == RUNNABLE ? new_selected : 0;
 // }
 
 // timer interrupt시 호출됨
-void pgroup_irq_trap(void)
+void
+pgroup_irq_trap(void)
 {
   acquire(&ptable.lock);
   myproc()->state = RUNNABLE;
@@ -582,7 +620,8 @@ pgroup_sched(void)
   }
 
   // round robin으로 다음 타겟을 선정
-  struct proc* target = get_runnable(container_of(curproc->pgroup.next, struct proc, pgroup));
+  struct proc* target =
+      get_runnable(container_of(curproc->pgroup.next, struct proc, pgroup));
 
   // pgroup에 runnable한 프로세스가 없을 경우
   if (!target)
@@ -894,7 +933,7 @@ thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
   struct clone_args args = { .mode          = CLONE_THREAD,
                              .args          = arg,
                              .start_routine = start_routine,
-                             .lock          = &ptable.lock};
+                             .lock          = &ptable.lock };
   // ptable.lock을 전역으로 잡을 필요가 없음 (놀랍게도)
   // acquire(&ptable.lock);
   int lwpid = clone(args);
@@ -932,8 +971,8 @@ thread_exit(void* retval)
 
   curproc->cwd = 0;
 
-  curproc->retval      = retval;
-  curproc->state       = ZOMBIE;
+  curproc->retval = retval;
+  curproc->state  = ZOMBIE;
   wakeup1((void*)curproc->pid);
 
   pgroup_sched();
@@ -950,7 +989,7 @@ thread_join(thread_t thread, void** retval)
   // 자기 그룹 내의 스레드만 join 할 수 있다
   // thread에 계층 구조는 존재하지 않는다
   for (struct linked_list* pos       = pgmaster->pgroup.next;
-        pos != &pgmaster->pgroup; pos = pos->next)
+       pos != &pgmaster->pgroup; pos = pos->next)
   {
     p = container_of(pos, struct proc, pgroup);
     if (p->pid == thread)
@@ -982,7 +1021,7 @@ found:
       p->parent  = 0;
       p->name[0] = 0;
       set_killed(p, 0);
-      p->state   = UNUSED;
+      p->state = UNUSED;
 
       linked_list_init(&p->pgroup);
       p->pgroup_master       = 0;
