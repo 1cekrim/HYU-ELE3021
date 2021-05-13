@@ -142,6 +142,7 @@ allocproc(enum CLONEMODE mode, struct spinlock* lock)
       goto found;
 
   RELEASE;
+  cprintf("no space");
   return 0;
 
 found:
@@ -737,7 +738,6 @@ yield(void)
   acquire(&ptable.lock); // DOC: yieldlock
   myproc()->state          = RUNNABLE;
   myproc()->schedule.yield = 1;
-  cprintf("yield sched %d\n", myproc()->pid);
   pgroup_sched();
   release(&ptable.lock);
 }
