@@ -323,7 +323,7 @@ clone(struct clone_args args)
     clearpteu(pgmaster->pgdir, (char*)(np->sz - 2 * PGSIZE));
 
     // stack 영역을 공유함
-    pgmaster->sz = np->sz;
+    pgmaster->sz = np->sz > pgmaster->sz ? np->sz : pgmaster->sz;
 
     // parent 같음
     np->parent = pgmaster->parent;
@@ -621,6 +621,7 @@ pgroup_sched(void)
 
   if (linked_list_is_empty(&pgmaster->pgroup) || isexhaustedprocess(pgmaster))
   {
+    pgmaster->schedule.yield = 1;
     sched();
     return;
   }

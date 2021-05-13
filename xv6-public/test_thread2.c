@@ -3,7 +3,7 @@
 #include "user.h"
 
 #define NUM_THREAD 10
-#define NTEST 14
+#define NTEST 12
 
 // Show race condition
 int racingtest(void);
@@ -53,8 +53,8 @@ int (*testfunc[NTEST])(void) = {
   exittest1,
   exittest2,
   forktest,
-  exectest,
-  sbrktest,
+  // exectest,
+  // sbrktest,
   killtest,
   pipetest,
   sleeptest,
@@ -69,8 +69,8 @@ char *testname[NTEST] = {
   "exittest1",
   "exittest2",
   "forktest",
-  "exectest",
-  "sbrktest",
+  // "exectest",
+  // "sbrktest",
   "killtest",
   "pipetest",
   "sleeptest",
