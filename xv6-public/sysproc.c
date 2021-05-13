@@ -52,7 +52,7 @@ sys_gettid(void)
 int
 sys_getlev(void)
 {
-  return myproc()->schedule.level;
+  return myproc()->pgroup_master->schedule.level;
 }
 
 int
@@ -70,7 +70,7 @@ sys_set_cpu_share(void)
   if (argint(0, &usage) < 0)
     return -1;
 
-  return set_cpu_share(myproc(), usage);
+  return set_cpu_share(myproc()->pgroup_master, usage);
 }
 
 int
@@ -81,7 +81,7 @@ sys_sbrk(void)
 
   if (argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
+  addr = myproc()->pgroup_master->sz;
   if (growproc(n) < 0)
     return -1;
   return addr;
@@ -99,7 +99,7 @@ sys_sleep(void)
   ticks0 = ticks;
   while (ticks - ticks0 < n)
   {
-    if (myproc()->killed)
+    if (is_killed(myproc()))
     {
       release(&tickslock);
       return -1;

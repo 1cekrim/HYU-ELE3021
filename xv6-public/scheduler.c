@@ -388,7 +388,7 @@ int
 mlfqnext(struct proc* p, uint start, uint end)
 {
   static uint nextboostingtick;
-  if (p->killed || p->state == ZOMBIE)
+  if (is_killed(p) || p->state == ZOMBIE)
   {
     return 1;
   }
@@ -429,7 +429,7 @@ mlfqnext(struct proc* p, uint start, uint end)
 int
 isexhaustedprocess(struct proc* p)
 {
-  if (p->killed || p->state == ZOMBIE)
+  if (is_killed(p) || p->state == ZOMBIE)
   {
     return 1;
   }

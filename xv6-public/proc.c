@@ -16,14 +16,13 @@ struct
 
 static struct proc* initproc;
 
-// TODO: linked_list를 thread-safe하게 만들어야 함
-struct spinlock pgroup_lock;
 
 struct clone_args
 {
   enum CLONEMODE mode;
   void* (*start_routine)(void*);
   void* args;
+  struct spinlock* lock;
 };
 
 int nextpid = 1;
@@ -37,7 +36,6 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
-  initlock(&pgroup_lock, "pgroup");
   mlfqinit();
 }
 
@@ -108,19 +106,21 @@ is_pgroup_master(struct proc* p)
 // If found, change state to EMBRYO and initialize
 // state required to run in the kernel.
 // Otherwise return 0.
+#define ACQUIRE if (lock) acquire(lock)
+#define RELEASE if (lock) release(lock)
 static struct proc*
-allocproc(enum CLONEMODE mode)
+allocproc(enum CLONEMODE mode, struct spinlock* lock)
 {
   struct proc* p;
   char* sp;
 
-  acquire(&ptable.lock);
+  ACQUIRE;
 
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if (p->state == UNUSED)
       goto found;
 
-  release(&ptable.lock);
+  RELEASE;
   return 0;
 
 found:
@@ -140,7 +140,7 @@ found:
     panic("allocproc: mlfqpush failure");
   }
 
-  release(&ptable.lock);
+  RELEASE;
 
   // Allocate kernel stack.
   if ((p->kstack = kalloc()) == 0)
@@ -148,9 +148,9 @@ found:
     p->state = UNUSED;
     if (is_pgroup_master(p))
     {
-      acquire(&ptable.lock);
+      ACQUIRE;
       schedremoveproc(p);
-      release(&ptable.lock);
+      RELEASE;
     }
     return 0;
   }
@@ -182,7 +182,7 @@ userinit(void)
   struct proc* p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  p = allocproc(CLONE_NONE);
+  p = allocproc(CLONE_NONE, &ptable.lock);
 
   initproc = p;
   if ((p->pgdir = setupkvm()) == 0)
@@ -218,21 +218,21 @@ int
 growproc(int n)
 {
   uint sz;
-  struct proc* curproc = myproc();
+  struct proc* pgmaster = myproc()->pgroup_master;
 
-  sz = curproc->sz;
+  sz = pgmaster->sz;
   if (n > 0)
   {
-    if ((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if ((sz = allocuvm(pgmaster->pgdir, sz, sz + n)) == 0)
       return -1;
   }
   else if (n < 0)
   {
-    if ((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if ((sz = deallocuvm(pgmaster->pgdir, sz, sz + n)) == 0)
       return -1;
   }
-  curproc->sz = sz;
-  switchuvm(curproc);
+  pgmaster->sz = sz;
+  switchuvm(pgmaster);
   return 0;
 }
 
@@ -241,14 +241,15 @@ clone(struct clone_args args)
 {
   int i, pid;
   struct proc* np;
-  struct proc* curproc = myproc();
+  struct proc* curproc = myproc()->pgroup_master;
 
   enum CLONEMODE mode           = args.mode;
   void* (*start_routine)(void*) = args.start_routine;
   void* arg                     = args.args;
+  struct spinlock* lock = args.lock;
 
   // Allocate process.
-  if ((np = allocproc(mode)) == 0)
+  if ((np = allocproc(mode, args.lock)) == 0)
   {
     return -1;
   }
@@ -262,7 +263,7 @@ clone(struct clone_args args)
     // pgroup_master의 pgroup에 np를 추가
     // TODO: lock 범위 수정 or linked_list를 thread-safe하게
 
-    acquire(&ptable.lock);
+    ACQUIRE;
     linked_list_init(&np->pgroup);
     linked_list_push_back(&np->pgroup, &pgmaster->pgroup);
 
@@ -280,7 +281,7 @@ clone(struct clone_args args)
       np->kstack = 0;
       np->state  = UNUSED;
       linked_list_remove(&np->pgroup);
-      release(&ptable.lock);
+      RELEASE;
       return -1;
     }
 
@@ -312,11 +313,16 @@ clone(struct clone_args args)
     // return 0xdeadbeef
     // TODO: 과제에서는 thread가 항상 exit를 호출하지만, 실제로는 그러지 않을 수
     // 있으므로 예외처리 필요
-    np->tf->esp -= 4;
+    np->tf->esp -= sizeof(void*);
     *((uint*)np->tf->esp) = (uint)arg;
-    np->tf->esp -= 4;
+    np->tf->esp -= sizeof(void*);
     *((uint*)np->tf->esp) = 0xdeafbeef;
-    release(&ptable.lock);
+    RELEASE;
+
+    for (i = 0; i < NOFILE; i++)
+      if (curproc->ofile[i])
+        np->ofile[i] = curproc->ofile[i];
+    np->cwd = curproc->cwd;
   }
   else
   {
@@ -329,32 +335,33 @@ clone(struct clone_args args)
       kfree(np->kstack);
       np->kstack = 0;
       np->state  = UNUSED;
-      acquire(&ptable.lock);
+      ACQUIRE;
       schedremoveproc(np);
-      release(&ptable.lock);
+      RELEASE;
       return -1;
     }
 
     np->sz     = curproc->sz;
     np->parent = curproc;
     *np->tf    = *curproc->tf;
+
+    for (i = 0; i < NOFILE; i++)
+      if (curproc->ofile[i])
+        np->ofile[i] = filedup(curproc->ofile[i]);
+    np->cwd = idup(curproc->cwd);
   }
   // Clear %eax so that fork returns 0 in the child.
 
   np->tf->eax = 0;
-  for (i = 0; i < NOFILE; i++)
-    if (curproc->ofile[i])
-      np->ofile[i] = filedup(curproc->ofile[i]);
-  np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
-  acquire(&ptable.lock);
+  ACQUIRE;
 
   np->state = RUNNABLE;
 
-  release(&ptable.lock);
+  RELEASE;
 
   return pid;
 }
@@ -367,7 +374,8 @@ fork(void)
 {
   struct clone_args args = { .mode          = CLONE_NONE,
                              .args          = 0,
-                             .start_routine = 0 };
+                             .start_routine = 0 ,
+                             .lock = &ptable.lock};
   return clone(args);
 }
 
@@ -377,37 +385,37 @@ fork(void)
 void
 exit(void)
 {
-  struct proc* curproc = myproc();
+  struct proc* pgmaster = myproc()->pgroup_master;
   struct proc* p;
   int fd;
 
-  if (curproc == initproc)
+  if (pgmaster == initproc)
     panic("init exiting");
 
   // Close all open files.
   for (fd = 0; fd < NOFILE; fd++)
   {
-    if (curproc->ofile[fd])
+    if (pgmaster->ofile[fd])
     {
-      fileclose(curproc->ofile[fd]);
-      curproc->ofile[fd] = 0;
+      fileclose(pgmaster->ofile[fd]);
+      pgmaster->ofile[fd] = 0;
     }
   }
 
   begin_op();
-  iput(curproc->cwd);
+  iput(pgmaster->cwd);
   end_op();
-  curproc->cwd = 0;
+  pgmaster->cwd = 0;
 
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
-  wakeup1(curproc->parent);
+  wakeup1(pgmaster->parent);
 
   // Pass abandoned children to init.
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
   {
-    if (p->parent == curproc)
+    if (p->parent == pgmaster)
     {
       p->parent = initproc;
       if (p->state == ZOMBIE)
@@ -418,7 +426,7 @@ exit(void)
   // TODO: abandoned thread 들도 init로 넘겨야 함
 
   // Jump into the scheduler, never to return.
-  curproc->state = ZOMBIE;
+  pgmaster->state = ZOMBIE;
   sched();
   panic("zombie exit");
 }
@@ -430,7 +438,7 @@ wait(void)
 {
   struct proc* p;
   int havekids, pid;
-  struct proc* curproc = myproc();
+  struct proc* pgmaster = myproc()->pgroup_master;
   acquire(&ptable.lock);
   for (;;)
   {
@@ -438,7 +446,7 @@ wait(void)
     havekids = 0;
     for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
-      if (p->parent != curproc)
+      if (p->parent != pgmaster)
         continue;
       havekids = 1;
 
@@ -453,7 +461,7 @@ wait(void)
         p->pid     = 0;
         p->parent  = 0;
         p->name[0] = 0;
-        p->killed  = 0;
+        set_killed(p, 0);
         p->state   = UNUSED;
         schedremoveproc(p);
         release(&ptable.lock);
@@ -462,14 +470,14 @@ wait(void)
     }
 
     // No point waiting if we don't have any children.
-    if (!havekids || curproc->killed)
+    if (!havekids || is_killed(pgmaster))
     {
       release(&ptable.lock);
       return -1;
     }
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    sleep(curproc, &ptable.lock); // DOC: wait-sleep
+    sleep(pgmaster, &ptable.lock); // DOC: wait-sleep
   }
 }
 
@@ -507,24 +515,24 @@ swtch_pgroup(struct proc* old_lwp, struct proc* new_lwp)
 }
 
 // pgroup 멤버들 대상으로 rr
-struct proc*
-pgroup_scheduler(struct proc* pgmaster)
-{
-  struct proc* selected = myproc();
-  struct proc* new_selected =
-      container_of(selected->pgroup.next, struct proc, pgroup);
+// struct proc*
+// pgroup_scheduler(struct proc* pgmaster)
+// {
+//   struct proc* selected = myproc();
+//   struct proc* new_selected =
+//       container_of(selected->pgroup.next, struct proc, pgroup);
 
-  while (selected != new_selected)
-  {
-    if (new_selected->state == RUNNABLE)
-    {
-      return new_selected;
-    }
-    new_selected = container_of(new_selected->pgroup.next, struct proc, pgroup);
-  }
+//   while (selected != new_selected)
+//   {
+//     if (new_selected->state == RUNNABLE)
+//     {
+//       return new_selected;
+//     }
+//     new_selected = container_of(new_selected->pgroup.next, struct proc, pgroup);
+//   }
 
-  return new_selected->state == RUNNABLE ? new_selected : 0;
-}
+//   return new_selected->state == RUNNABLE ? new_selected : 0;
+// }
 
 // timer interrupt시 호출됨
 void
@@ -542,21 +550,30 @@ pgroup_itq_timer(void)
   acquire(&ptable.lock);
 
   // myproc을 RUNNABLE 하게 변경
-  curproc->state = RUNNABLE;
+  if (curproc->state == RUNNING)
+  {
+    curproc->state = RUNNABLE;
+  }
 
   // round robin으로 다음 타겟을 선정
-  struct proc* target = pgroup_scheduler(pgmaster);
+  struct proc* target = get_runnable(pgmaster);
 
-  // pgroup에 runnable한 프로세스가 없을 경우 (발생하지 않음)
+  // pgroup에 runnable한 프로세스가 없을 경우
   if (!target)
   {
-    panic("no...");
     sched();
     release(&ptable.lock);
     return;
   }
 
+  if (target->state != RUNNABLE)
+  {
+    panic("no...");
+  }
+
   pgmaster->pgroup_next_execute = target;
+  cprintf("swtch_pgroup %d\n", target->pid);
+  ps();
   swtch_pgroup(curproc, target);
   release(&ptable.lock);
 }
@@ -627,7 +644,7 @@ scheduler(void)
       uint start = 0;
       uint end   = 0;
 
-      struct proc* rp = get_runnable(p->pgroup_next_execute);
+      struct proc* rp = p->pgroup_next_execute;
       if (rp)
       {
         p->pgroup_next_execute = rp;
@@ -639,6 +656,18 @@ scheduler(void)
         swtch(&(c->scheduler), rp->context);
         end = sys_uptime();
         switchkvm();
+      }
+      else if (rp = get_runnable(rp))
+      {
+        if (rp->state != RUNNABLE)
+        {
+          panic("no...");
+        }
+
+        p->pgroup_next_execute = rp;
+        cprintf("swtch_pgroup_in_sched %d\n", rp->pid);
+        swtch_pgroup(curproc, target);
+        release(&ptable.lock);
       }
 
       switch (p->schedule.sched)
@@ -689,6 +718,12 @@ sched(void)
   mycpu()->intena = intena;
 }
 
+void
+pgroup_sched(void)
+{
+  
+}
+
 // Give up the CPU for one scheduling round.
 void
 yield(void)
@@ -696,6 +731,7 @@ yield(void)
   acquire(&ptable.lock); // DOC: yieldlock
   myproc()->state          = RUNNABLE;
   myproc()->schedule.yield = 1;
+  cprintf("yield sched %d\n", myproc()->pid);
   sched();
   release(&ptable.lock);
 }
@@ -797,7 +833,7 @@ kill(int pid)
   {
     if (p->pid == pid)
     {
-      p->killed = 1;
+      set_killed(p, 1);
       // Wake process from sleep if necessary.
       if (p->state == SLEEPING)
         p->state = RUNNABLE;
@@ -849,8 +885,12 @@ thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
 {
   struct clone_args args = { .mode          = CLONE_THREAD,
                              .args          = arg,
-                             .start_routine = start_routine };
+                             .start_routine = start_routine,
+                             .lock          = 0};
+  acquire(&ptable.lock);
   int lwpid = clone(args);
+  release(&ptable.lock);
+
   if (lwpid)
   {
     *thread = lwpid;
@@ -871,8 +911,19 @@ void
 thread_exit(void* retval)
 {
   acquire(&ptable.lock);
-
   struct proc* curproc = myproc();
+  cprintf("exit: %d\n", curproc->pid);
+
+  for (int fd = 0; fd < NOFILE; fd++)
+  {
+    if (curproc->ofile[fd])
+    {
+      curproc->ofile[fd] = 0;
+    }
+  }
+
+  curproc->cwd = 0;
+
   curproc->retval      = retval;
   curproc->state       = ZOMBIE;
   wakeup1((void*)curproc->pid);
@@ -907,23 +958,25 @@ found:
   {
     if (p->state == ZOMBIE)
     {
+      cprintf("join %d\n", p->pid);
       *retval = p->retval;
       kfree(p->kstack);
       p->kstack  = 0;
       p->pid     = 0;
+      p->pgid    = 0;
       p->parent  = 0;
       p->name[0] = 0;
-      p->killed  = 0;
+      set_killed(p, 0);
       p->state   = UNUSED;
 
       linked_list_remove(&p->pgroup);
+      linked_list_init(&p->pgroup);
       p->pgroup_master       = 0;
       p->pgroup_next_execute = 0;
 
       release(&ptable.lock);
       return 0;
     }
-    
     sleep((void*)thread, &ptable.lock);
   }
 }
