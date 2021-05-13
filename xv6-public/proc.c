@@ -153,6 +153,7 @@ found:
   p->pgroup_master       = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
   p->pgid                = p->pgroup_master->pid;
   linked_list_init(&p->pgroup);
+  linked_list_init(&p->stackbin);
 
   // p가 pgroup_master일 경우 mlfq에 p 추가
   // 최대 process 개수 == mlfq level 0의 크기
@@ -295,7 +296,8 @@ clone(struct clone_args args)
     // alloc stack
     // TODO: 스레드에서 stack 늘리면 어떻게 됨??
     // TODO: 스레드가 exit 된 다음에 해당 영역 재사용 필요
-    np->sz = allocuvm(pgmaster->pgdir, pgmaster->sz, pgmaster->sz + 2 * PGSIZE);
+    // np->sz = allocuvm(pgmaster->pgdir, pgmaster->sz, pgmaster->sz + 2 * PGSIZE);
+    np->sz = allocpageuvm(pgmaster->pgdir, &pgmaster->stackbin, pgmaster->sz, 2);
     if (!np->sz)
     {
       // ROLLBACK
@@ -968,6 +970,9 @@ found:
       {
         panic("remove./..");
       }
+
+      setpteu(pgmaster->pgdir, (char*)(p->sz - 2 * PGSIZE));
+      freepageuvm(pgmaster->pgdir, &pgmaster->stackbin, p->sz, 2);
 
       *retval = p->retval;
       kfree(p->kstack);

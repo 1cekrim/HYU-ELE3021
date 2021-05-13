@@ -223,6 +223,88 @@ loaduvm(pde_t* pgdir, char* addr, struct inode* ip, uint offset, uint sz)
   return 0;
 }
 
+static const uint stackbin_magic = 0x1234abcd;
+
+struct stackbin_header
+{
+  uint magic;
+  uint pagecnt;
+  uint sz;
+  struct linked_list list;
+};
+
+int
+allocpageuvm(pde_t* pgdir, struct linked_list* head, uint sz, uint pagecnt)
+{
+  if (linked_list_is_empty(head))
+  {
+    // cprintf("allocuvm\n");
+    return allocuvm(pgdir, sz, sz + pagecnt * PGSIZE);
+  }
+
+  struct stackbin_header* header = 0;
+  for (struct linked_list* pos = head->next; pos != head; pos = pos->next)
+  {
+    header = container_of(pos, struct stackbin_header, list);
+    if (header->magic != stackbin_magic)
+    {
+      panic("stackbin corrupted");
+    }
+    
+    if (header->pagecnt >= pagecnt)
+    {
+      break;
+    }
+  }
+  
+  // cprintf("free (%p, %d, %d)\n", header, header->sz, header->pagecnt);
+
+  // TODO: merge 구현
+  if (!header)
+  {
+    panic("not supported: merge stackbin");
+  }
+
+  // TODO: split 구현
+  if (header->pagecnt != pagecnt)
+  {
+    panic("not supported: split stackbin");
+  }
+
+  linked_list_remove(&header->list);
+
+  int result = header->sz;
+
+  // stackbin 헤더를 지움 (취약점 방지)
+  memset(header, 0, sizeof(header));
+
+  return result;
+}
+
+int
+freepageuvm(pde_t* pgdir, struct linked_list* head, uint sz, uint pagecnt)
+{
+  // TODO: pgdir 해당 페이지를 지우는 것이 안전한가?
+  
+  uint a = PGROUNDUP(sz);
+  pte_t* pte = walkpgdir(pgdir, (char*)a, 0);
+  struct stackbin_header* header = P2V(PTE_ADDR(*pte));
+  header->magic = stackbin_magic;
+  header->pagecnt = pagecnt;
+  header->sz = sz;
+  // cprintf("free (%p, %d, %d)\n", header, header->sz, header->pagecnt);
+  linked_list_init(&header->list);
+  linked_list_push_back(&header->list, head);
+  // for (struct linked_list* pos = head->next; pos != head;
+  //      pos                     = pos->next)
+  // {
+  //   cprintf("(%x, %p), ", container_of(pos, struct stackbin_header, list)->magic, pos);
+  // }
+  // cprintf("\n");
+
+  return 0;
+}
+
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 int
@@ -322,6 +404,17 @@ clearpteu(pde_t* pgdir, char* uva)
   if (pte == 0)
     panic("clearpteu");
   *pte &= ~PTE_U;
+}
+
+void
+setpteu(pde_t* pgdir, char* uva)
+{
+  pte_t* pte;
+
+  pte = walkpgdir(pgdir, uva, 0);
+  if (pte == 0)
+    panic("clearpteu");
+  *pte |= PTE_U;
 }
 
 // Given a parent process's page table, create a copy

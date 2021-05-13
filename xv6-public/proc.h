@@ -79,7 +79,8 @@ struct proc
   char name[16];              // Process name (debugging)
 
   int pgid;
-  struct linked_list pgroup;
+  struct linked_list pgroup;  // pgroup에 속한 proc들의 linked list
+  struct linked_list stackbin;// pgroup에 속한 proc들의 stack을 위한 bin
   struct proc* pgroup_master;
   struct proc* pgroup_next_execute;
   void* retval;

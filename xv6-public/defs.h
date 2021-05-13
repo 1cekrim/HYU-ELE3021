@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct linked_list;
 
 // bio.c
 void binit(void);
@@ -177,6 +178,8 @@ pde_t* setupkvm(void);
 char* uva2ka(pde_t*, char*);
 int allocuvm(pde_t*, uint, uint);
 int deallocuvm(pde_t*, uint, uint);
+int allocpageuvm(pde_t*, struct linked_list*, uint, uint);
+int freepageuvm(pde_t*, struct linked_list*, uint, uint);
 void freevm(pde_t*);
 void inituvm(pde_t*, char*, uint);
 int loaduvm(pde_t*, char*, struct inode*, uint, uint);
@@ -185,6 +188,7 @@ void switchuvm(struct proc*);
 void switchkvm(void);
 int copyout(pde_t*, uint, void*, uint);
 void clearpteu(pde_t* pgdir, char* uva);
+void setpteu(pde_t* pgdir, char* uva);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x) / sizeof((x)[0]))
