@@ -101,6 +101,27 @@ is_pgroup_master(struct proc* p)
   return p->pgroup_master == p;
 }
 
+static int
+is_pgroup_have_pid(struct proc* node, int pid)
+{
+  if (node->pid == pid)
+  {
+    return 1;
+  }
+  
+  for (struct linked_list* pos       = node->pgroup.next;
+      pos != &node->pgroup; pos = pos->next)
+  {
+    struct proc* p = container_of(pos, struct proc, pgroup);
+    if (p->pid == pid)
+    {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 // PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
@@ -535,34 +556,35 @@ swtch_pgroup(struct proc* old_lwp, struct proc* new_lwp)
 // }
 
 // timer interrupt시 호출됨
+void pgroup_irq_trap(void)
+{
+  acquire(&ptable.lock);
+  myproc()->state = RUNNABLE;
+  pgroup_sched();
+  release(&ptable.lock);
+}
+
 void
-pgroup_itq_timer(void)
+pgroup_sched(void)
 {
   struct proc* curproc  = myproc();
   struct proc* pgmaster = curproc->pgroup_master;
+  // dump_pgroup(curproc);
   // single thread이거나, time quantum을 넘어 scheduling이 필요할 경우
+
   if (linked_list_is_empty(&pgmaster->pgroup) || isexhaustedprocess(pgmaster))
   {
-    yield();
+    sched();
     return;
   }
 
-  acquire(&ptable.lock);
-
-  // myproc을 RUNNABLE 하게 변경
-  if (curproc->state == RUNNING)
-  {
-    curproc->state = RUNNABLE;
-  }
-
   // round robin으로 다음 타겟을 선정
-  struct proc* target = get_runnable(pgmaster);
+  struct proc* target = get_runnable(container_of(curproc->pgroup.next, struct proc, pgroup));
 
   // pgroup에 runnable한 프로세스가 없을 경우
   if (!target)
   {
     sched();
-    release(&ptable.lock);
     return;
   }
 
@@ -571,11 +593,13 @@ pgroup_itq_timer(void)
     panic("no...");
   }
 
+  if (curproc == target)
+  {
+    return;
+  }
+
   pgmaster->pgroup_next_execute = target;
-  cprintf("swtch_pgroup %d\n", target->pid);
-  ps();
   swtch_pgroup(curproc, target);
-  release(&ptable.lock);
 }
 
 // PAGEBREAK: 42
@@ -644,7 +668,7 @@ scheduler(void)
       uint start = 0;
       uint end   = 0;
 
-      struct proc* rp = p->pgroup_next_execute;
+      struct proc* rp = get_runnable(p->pgroup_next_execute);
       if (rp)
       {
         p->pgroup_next_execute = rp;
@@ -656,18 +680,6 @@ scheduler(void)
         swtch(&(c->scheduler), rp->context);
         end = sys_uptime();
         switchkvm();
-      }
-      else if (rp = get_runnable(rp))
-      {
-        if (rp->state != RUNNABLE)
-        {
-          panic("no...");
-        }
-
-        p->pgroup_next_execute = rp;
-        cprintf("swtch_pgroup_in_sched %d\n", rp->pid);
-        swtch_pgroup(curproc, target);
-        release(&ptable.lock);
       }
 
       switch (p->schedule.sched)
@@ -718,12 +730,6 @@ sched(void)
   mycpu()->intena = intena;
 }
 
-void
-pgroup_sched(void)
-{
-  
-}
-
 // Give up the CPU for one scheduling round.
 void
 yield(void)
@@ -732,7 +738,7 @@ yield(void)
   myproc()->state          = RUNNABLE;
   myproc()->schedule.yield = 1;
   cprintf("yield sched %d\n", myproc()->pid);
-  sched();
+  pgroup_sched();
   release(&ptable.lock);
 }
 
@@ -785,7 +791,7 @@ sleep(void* chan, struct spinlock* lk)
   p->chan  = chan;
   p->state = SLEEPING;
 
-  sched();
+  pgroup_sched();
 
   // Tidy up.
   p->chan = 0;
@@ -886,10 +892,11 @@ thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
   struct clone_args args = { .mode          = CLONE_THREAD,
                              .args          = arg,
                              .start_routine = start_routine,
-                             .lock          = 0};
-  acquire(&ptable.lock);
+                             .lock          = &ptable.lock};
+  // ptable.lock을 전역으로 잡을 필요가 없음 (놀랍게도)
+  // acquire(&ptable.lock);
   int lwpid = clone(args);
-  release(&ptable.lock);
+  // release(&ptable.lock);
 
   if (lwpid)
   {
@@ -912,7 +919,6 @@ thread_exit(void* retval)
 {
   acquire(&ptable.lock);
   struct proc* curproc = myproc();
-  cprintf("exit: %d\n", curproc->pid);
 
   for (int fd = 0; fd < NOFILE; fd++)
   {
@@ -928,7 +934,7 @@ thread_exit(void* retval)
   curproc->state       = ZOMBIE;
   wakeup1((void*)curproc->pid);
 
-  sched();
+  pgroup_sched();
   panic("thread_exit");
 }
 
@@ -942,7 +948,7 @@ thread_join(thread_t thread, void** retval)
   // 자기 그룹 내의 스레드만 join 할 수 있다
   // thread에 계층 구조는 존재하지 않는다
   for (struct linked_list* pos       = pgmaster->pgroup.next;
-       pos != &pgmaster->pgroup; pos = pos->next)
+        pos != &pgmaster->pgroup; pos = pos->next)
   {
     p = container_of(pos, struct proc, pgroup);
     if (p->pid == thread)
@@ -950,7 +956,6 @@ thread_join(thread_t thread, void** retval)
       goto found;
     }
   }
-
   release(&ptable.lock);
   return -1;
 found:
@@ -958,7 +963,12 @@ found:
   {
     if (p->state == ZOMBIE)
     {
-      cprintf("join %d\n", p->pid);
+      linked_list_remove(&p->pgroup);
+      if (is_pgroup_have_pid(p->pgroup_master, p->pid))
+      {
+        panic("remove./..");
+      }
+
       *retval = p->retval;
       kfree(p->kstack);
       p->kstack  = 0;
@@ -969,7 +979,6 @@ found:
       set_killed(p, 0);
       p->state   = UNUSED;
 
-      linked_list_remove(&p->pgroup);
       linked_list_init(&p->pgroup);
       p->pgroup_master       = 0;
       p->pgroup_next_execute = 0;

@@ -4,6 +4,7 @@
         "type_traits": "cpp",
         "assert.h": "c",
         "user.h": "c",
-        "proc.h": "c"
+        "proc.h": "c",
+        "scheduler.h": "c"
     }
 }

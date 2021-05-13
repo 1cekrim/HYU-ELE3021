@@ -14,7 +14,7 @@ extern uint vectors[]; // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
-extern void pgroup_itq_timer(void);
+extern void pgroup_sched(void);
 
 void
 tvinit(void)
@@ -34,6 +34,7 @@ idtinit(void)
   lidt(idt, sizeof(idt));
 }
 
+extern void pgroup_irq_trap(void);
 // PAGEBREAK: 41
 void
 trap(struct trapframe* tf)
@@ -109,7 +110,7 @@ trap(struct trapframe* tf)
   // If interrupts were on while locks held, would need to check nlock.
   if (myproc() && myproc()->state == RUNNING &&
       tf->trapno == T_IRQ0 + IRQ_TIMER)
-    pgroup_itq_timer();
+    pgroup_irq_trap();
     // yield();
 
   // Check if the process has been killed since we yielded
