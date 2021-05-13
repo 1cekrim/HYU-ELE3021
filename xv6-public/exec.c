@@ -18,6 +18,10 @@ exec(char* path, char** argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc* curproc = myproc();
+  // TODO: 현재는 동작하지 않음
+  // TODO: 현재 컨텍스트가 pgmaster가 아니면 trap 14 발생
+  // TODO: 실행 중인 스레드를 process group master로 승격시키는 것이 가장 쉬울 듯
+  struct proc* pgmaster = curproc->pgroup_master;
 
   begin_op();
 
@@ -90,19 +94,21 @@ exec(char* path, char** argv)
   if (copyout(pgdir, sp, ustack, (3 + argc + 1) * 4) < 0)
     goto bad;
 
+  free_threads(pgmaster->pgroup_master);
+
   // Save program name for debugging.
   for (last = s = path; *s; s++)
     if (*s == '/')
       last = s + 1;
-  safestrcpy(curproc->name, last, sizeof(curproc->name));
+  safestrcpy(pgmaster->name, last, sizeof(pgmaster->name));
 
   // Commit to the user image.
-  oldpgdir         = curproc->pgdir;
-  curproc->pgdir   = pgdir;
-  curproc->sz      = sz;
-  curproc->tf->eip = elf.entry; // main
-  curproc->tf->esp = sp;
-  switchuvm(curproc);
+  oldpgdir         = pgmaster->pgdir;
+  pgmaster->pgdir   = pgdir;
+  pgmaster->sz      = sz;
+  pgmaster->tf->eip = elf.entry; // main
+  pgmaster->tf->esp = sp;
+  switchuvm(pgmaster);
   freevm(oldpgdir);
   return 0;
 

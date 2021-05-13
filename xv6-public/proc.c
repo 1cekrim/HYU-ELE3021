@@ -266,7 +266,7 @@ clone(struct clone_args args)
 {
   int i, pid;
   struct proc* np;
-  struct proc* curproc = myproc()->pgroup_master;
+  struct proc* curproc = myproc();
 
   enum CLONEMODE mode           = args.mode;
   void* (*start_routine)(void*) = args.start_routine;
@@ -467,6 +467,28 @@ exit(void)
   panic("zombie exit");
 }
 
+void free_threads(struct proc* p)
+{
+  p = p->pgroup_master;
+  for (struct linked_list* pos = p->pgroup.next; pos != &p->pgroup;
+             pos                     = pos->next)
+  {
+    struct proc* t = container_of(pos, struct proc, pgroup);
+    kfree(t->kstack);
+    t->kstack  = 0;
+    t->pid     = 0;
+    t->pgid    = 0;
+    t->parent  = 0;
+    t->name[0] = 0;
+    set_killed(t, 0);
+    t->state = UNUSED;
+
+    // linked_list_init(&t->pgroup);
+    t->pgroup_master       = 0;
+    t->pgroup_next_execute = 0;
+  }
+}
+
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
@@ -500,23 +522,7 @@ wait(void)
         freevm(p->pgdir);
 
         // free threads
-        for (struct linked_list* pos = p->pgroup.next; pos != &p->pgroup;
-             pos                     = pos->next)
-        {
-          struct proc* t = container_of(pos, struct proc, pgroup);
-          kfree(t->kstack);
-          t->kstack  = 0;
-          t->pid     = 0;
-          t->pgid    = 0;
-          t->parent  = 0;
-          t->name[0] = 0;
-          set_killed(t, 0);
-          t->state = UNUSED;
-
-          // linked_list_init(&t->pgroup);
-          t->pgroup_master       = 0;
-          t->pgroup_next_execute = 0;
-        }
+        free_threads(p);
 
         p->pid     = 0;
         p->parent  = 0;
