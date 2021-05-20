@@ -82,7 +82,7 @@ struct proc
   struct linked_list pgroup;  // pgroup에 속한 proc들의 linked list
   struct linked_list stackbin;// pgroup에 속한 proc들의 stack을 위한 bin
   struct proc* pgroup_master;
-  struct proc* pgroup_next_execute;
+  struct proc* pgroup_current_execute;
   void* retval;
 
   struct

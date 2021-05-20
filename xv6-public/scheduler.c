@@ -119,11 +119,6 @@ pqtop(struct priorityqueue* pq)
 struct proc*
 get_runnable(struct proc* p)
 {
-  if (p->state == RUNNABLE)
-  {
-    return p;
-  }
-
   for (struct linked_list* pos = p->pgroup.next; pos != &p->pgroup; pos = pos->next)
   {
     if (container_of(pos, struct proc, pgroup)->state == RUNNABLE)
@@ -132,6 +127,10 @@ get_runnable(struct proc* p)
     }
   }
 
+  if (p->state == RUNNABLE)
+  {
+    return p;
+  }
   return 0;
 }
 
@@ -434,15 +433,17 @@ isexhaustedprocess(struct proc* p)
     return 1;
   }
 
+  // TODO: 쓰레드 yield 처리
   if (p->schedule.sched == SCHEDMLFQ)
   {
     return (sys_uptime() - p->schedule.lastscheduledtick) >=
-               mlfq.quantum[p->schedule.level] ||
-           p->schedule.yield || p->state == SLEEPING;
+               mlfq.quantum[p->schedule.level];
   }
   else
   {
-    // TODO: stride quantum
+    // TODO: stride quantum을 option에서 선택할 수 있는 상수로
+    // cprintf("%d: %d\n", (sys_uptime() - p->schedule.lastscheduledtick), (sys_uptime() - p->schedule.lastscheduledtick) >= 5);
+    return (sys_uptime() - p->schedule.lastscheduledtick) >= 5;
   }
 
   // not reached
@@ -736,6 +737,7 @@ int
 set_cpu_share(struct proc* p, int usage)
 {
   acquire(&masterscheduler.lock);
+  p = p->pgroup_master;
   if (p->schedule.sched != SCHEDMLFQ)
   {
     // MLFQ가 최소한 MLFQMINTICKET 만큼의 ticket을 점유해야 한다

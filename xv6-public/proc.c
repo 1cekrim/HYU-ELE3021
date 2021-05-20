@@ -151,7 +151,7 @@ found:
   p->state = EMBRYO;
   p->pid   = nextpid++;
 
-  p->pgroup_next_execute = p;
+  p->pgroup_current_execute = p;
   p->pgroup_master       = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
   p->pgid                = p->pgroup_master->pid;
   linked_list_init(&p->pgroup);
@@ -485,7 +485,7 @@ void free_threads(struct proc* p)
 
     // linked_list_init(&t->pgroup);
     t->pgroup_master       = 0;
-    t->pgroup_next_execute = 0;
+    t->pgroup_current_execute = 0;
   }
 }
 
@@ -531,7 +531,7 @@ wait(void)
         p->state = UNUSED;
         schedremoveproc(p);
         p->pgroup_master       = 0;
-        p->pgroup_next_execute = 0;
+        p->pgroup_current_execute = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -647,7 +647,7 @@ pgroup_sched(void)
     return;
   }
 
-  pgmaster->pgroup_next_execute = target;
+  pgmaster->pgroup_current_execute = target;
   swtch_pgroup(curproc, target);
 }
 
@@ -717,10 +717,10 @@ scheduler(void)
       uint start = 0;
       uint end   = 0;
 
-      struct proc* rp = get_runnable(p->pgroup_next_execute);
+      struct proc* rp = get_runnable(p->pgroup_current_execute);
       if (rp)
       {
-        p->pgroup_next_execute = rp;
+        p->pgroup_current_execute = rp;
         c->proc                = rp;
         switchuvm(rp);
         rp->state                     = RUNNING;
@@ -1032,7 +1032,7 @@ found:
 
       linked_list_init(&p->pgroup);
       p->pgroup_master       = 0;
-      p->pgroup_next_execute = 0;
+      p->pgroup_current_execute = 0;
 
       release(&ptable.lock);
       return 0;
