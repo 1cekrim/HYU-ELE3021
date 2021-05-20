@@ -267,6 +267,8 @@ clone(struct clone_args args)
   int i, pid;
   struct proc* np;
   struct proc* curproc = myproc();
+  // TrapFrame을 제외한 모든 값을 pgmaster로부터 상속해야한다!
+  struct proc* pgmaster = curproc->pgroup_master;
 
   enum CLONEMODE mode           = args.mode;
   void* (*start_routine)(void*) = args.start_routine;
@@ -329,8 +331,7 @@ clone(struct clone_args args)
     np->parent = pgmaster->parent;
 
     // trapframe 복사
-    // TODO: 이거 curproc 복사하는게 맞나? pgmaster꺼 복사하면 문제 생길 거 같긴
-    // 함
+    // TODO: 이거 curproc 복사하는게 맞나? pgmaster꺼 복사하면 문제 생길 거 같긴함
     *np->tf = *curproc->tf;
 
     // esp -> new stack으로 / eip -> start_routine으로
@@ -348,9 +349,9 @@ clone(struct clone_args args)
     RELEASE;
 
     for (i = 0; i < NOFILE; i++)
-      if (curproc->ofile[i])
-        np->ofile[i] = curproc->ofile[i];
-    np->cwd = curproc->cwd;
+      if (pgmaster->ofile[i])
+        np->ofile[i] = pgmaster->ofile[i];
+    np->cwd = pgmaster->cwd;
   }
   else
   {
@@ -358,7 +359,7 @@ clone(struct clone_args args)
     linked_list_init(&np->pgroup);
 
     // Copy process state from proc.
-    if ((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0)
+    if ((np->pgdir = copyuvm(pgmaster->pgdir, pgmaster->sz)) == 0)
     {
       kfree(np->kstack);
       np->kstack = 0;
@@ -369,20 +370,20 @@ clone(struct clone_args args)
       return -1;
     }
 
-    np->sz     = curproc->sz;
-    np->parent = curproc;
+    np->sz     = pgmaster->sz;
+    np->parent = pgmaster;
     *np->tf    = *curproc->tf;
 
     for (i = 0; i < NOFILE; i++)
-      if (curproc->ofile[i])
-        np->ofile[i] = filedup(curproc->ofile[i]);
-    np->cwd = idup(curproc->cwd);
+      if (pgmaster->ofile[i])
+        np->ofile[i] = filedup(pgmaster->ofile[i]);
+    np->cwd = idup(pgmaster->cwd);
   }
   // Clear %eax so that fork returns 0 in the child.
 
   np->tf->eax = 0;
 
-  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+  safestrcpy(np->name, pgmaster->name, sizeof(pgmaster->name));
 
   pid = np->pid;
   ACQUIRE;
