@@ -22,9 +22,15 @@ exec(char* path, char** argv)
   // TODO: 현재 컨텍스트가 pgmaster가 아니면 trap 14 발생
   // TODO: 실행 중인 스레드를 process group master로 승격시키는 것이 가장 쉬울 듯
   struct proc* pgmaster = curproc->pgroup_master;
-
+  cprintf("exec\n");
+  pushcli();
+  // free_threads(pgmaster);
+  
+  cprintf("exec\n");
+  popcli();
   begin_op();
-
+  
+  cprintf("exec\n");
   if ((ip = namei(path)) == 0)
   {
     end_op();
@@ -34,6 +40,7 @@ exec(char* path, char** argv)
   ilock(ip);
   pgdir = 0;
 
+  cprintf("exec\n");
   // Check ELF header
   if (readi(ip, (char*)&elf, 0, sizeof(elf)) != sizeof(elf))
     goto bad;
@@ -94,7 +101,6 @@ exec(char* path, char** argv)
   if (copyout(pgdir, sp, ustack, (3 + argc + 1) * 4) < 0)
     goto bad;
 
-  free_threads(pgmaster->pgroup_master);
 
   // Save program name for debugging.
   for (last = s = path; *s; s++)

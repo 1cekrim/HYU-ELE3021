@@ -152,8 +152,8 @@ found:
   p->pid   = nextpid++;
 
   p->pgroup_current_execute = p;
-  p->pgroup_master       = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
-  p->pgid                = p->pgroup_master->pid;
+  p->pgroup_master = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
+  p->pgid          = p->pgroup_master->pid;
   linked_list_init(&p->pgroup);
   linked_list_init(&p->stackbin);
 
@@ -331,7 +331,6 @@ clone(struct clone_args args)
     np->parent = pgmaster->parent;
 
     // trapframe 복사
-    // TODO: 이거 curproc 복사하는게 맞나? pgmaster꺼 복사하면 문제 생길 거 같긴함
     *np->tf = *curproc->tf;
 
     // esp -> new stack으로 / eip -> start_routine으로
@@ -468,13 +467,18 @@ exit(void)
   panic("zombie exit");
 }
 
-void free_threads(struct proc* p)
+void
+free_threads(struct proc* p)
 {
-  p = p->pgroup_master;
-  for (struct linked_list* pos = p->pgroup.next; pos != &p->pgroup;
-             pos                     = pos->next)
+  // p = p->pgroup_master;
+  cprintf("master: %p, myproc: %p\n", p->pgroup_master, p);
+  for (struct linked_list *pos = p->pgroup.next, *next = pos->next;
+       pos != &p->pgroup; pos = next, next = pos->next)
   {
+    cprintf("%p, %p\n", pos, &p->pgroup);
     struct proc* t = container_of(pos, struct proc, pgroup);
+    cprintf("t: %p, myproc: %p\n", t, myproc());
+    // cprintf("kfree: %p\n", t->kstack);
     kfree(t->kstack);
     t->kstack  = 0;
     t->pid     = 0;
@@ -484,10 +488,12 @@ void free_threads(struct proc* p)
     set_killed(t, 0);
     t->state = UNUSED;
 
-    // linked_list_init(&t->pgroup);
-    t->pgroup_master       = 0;
+    linked_list_remove(pos);
+    linked_list_init(&t->pgroup);
+    t->pgroup_master          = 0;
     t->pgroup_current_execute = 0;
   }
+  cprintf("freethreads end\n");
 }
 
 // Wait for a child process to exit and return its pid.
@@ -522,6 +528,7 @@ wait(void)
         // free vm
         freevm(p->pgdir);
 
+        cprintf("wait\n");
         // free threads
         free_threads(p);
 
@@ -531,7 +538,7 @@ wait(void)
         set_killed(p, 0);
         p->state = UNUSED;
         schedremoveproc(p);
-        p->pgroup_master       = 0;
+        p->pgroup_master          = 0;
         p->pgroup_current_execute = 0;
         release(&ptable.lock);
         return pid;
@@ -649,6 +656,7 @@ pgroup_sched(void)
   }
 
   pgmaster->pgroup_current_execute = target;
+  
   swtch_pgroup(curproc, target);
 }
 
@@ -722,7 +730,7 @@ scheduler(void)
       if (rp)
       {
         p->pgroup_current_execute = rp;
-        c->proc                = rp;
+        c->proc                   = rp;
         switchuvm(rp);
         rp->state                     = RUNNING;
         start                         = sys_uptime();
@@ -1032,7 +1040,7 @@ found:
       p->state = UNUSED;
 
       linked_list_init(&p->pgroup);
-      p->pgroup_master       = 0;
+      p->pgroup_master          = 0;
       p->pgroup_current_execute = 0;
 
       release(&ptable.lock);
