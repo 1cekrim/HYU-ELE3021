@@ -134,6 +134,33 @@ get_runnable(struct proc* p)
   return 0;
 }
 
+void change_sched(struct proc* before, struct proc* after){
+  if (before->schedule.sched == SCHEDMLFQ)
+  {
+    // mlfq
+    // TODO: linear search -> 비효율적
+    // TODO: mlfq를 linked list로, scheduler에 자신의 위치를 저장 등
+    for (int i = 0; i < MSIZE; ++i)
+    {
+      if (mlfq.q[before->schedule.level].q[i] == before)
+      {
+        mlfq.q[before->schedule.level].q[i] = after;
+      }
+    }
+  }
+  else
+  {
+    for (int i = 0; i < masterscheduler.pq.size; ++i)
+    {
+      if (masterscheduler.pq.data[i].value == before)
+      {
+        masterscheduler.pq.data[i].value = after;
+      }
+    }
+  }
+} 
+
+
 void
 pqshiftup(struct priorityqueue* pq, int index)
 {

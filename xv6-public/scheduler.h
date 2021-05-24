@@ -35,6 +35,7 @@ struct stridescheduler
 
 int isexhaustedprocess(struct proc*);
 struct proc* get_runnable(struct proc*);
+void change_sched(struct proc*, struct proc*);
 
 void mlfqinit();
 int mlfqpush(struct proc*);

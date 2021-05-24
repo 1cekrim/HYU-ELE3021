@@ -2,6 +2,8 @@
 #define __PROC_H__
 
 #include "linked_list.h"
+#include "spinlock.h"
+
 
 // Per-CPU state
 struct cpu
@@ -83,6 +85,7 @@ struct proc
   struct linked_list stackbin;// pgroup에 속한 proc들의 stack을 위한 bin
   struct proc* pgroup_master;
   struct proc* pgroup_current_execute;
+  struct spinlock pgroup_lock;
   void* retval;
 
   struct
@@ -106,10 +109,20 @@ void thread_exit(void* retval);
 int thread_join(thread_t thread, void** retval);
 void pgroup_sched(void);
 void free_threads(struct proc* p);
+void clear_threads_exec();
 
 static inline int is_killed(struct proc* p)
 {
-  return p->pgroup_master->killed;
+  // p->pgroup_master가 유효한지 확인
+  // 유효하지 않다 -> p 자신 반환 (일반적으로 0)
+  if (p->pgroup_master)
+  {
+    return p->pgroup_master->killed;
+  }
+  else
+  {
+    return p->killed;
+  }
 }
 
 static inline void set_killed(struct proc* p, int killed)

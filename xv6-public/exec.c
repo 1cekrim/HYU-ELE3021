@@ -7,6 +7,16 @@
 #include "x86.h"
 #include "elf.h"
 
+
+static inline int
+is_pgroup_master(struct proc* p)
+{
+  return p->pgroup_master == p;
+}
+
+extern void change_sched(struct proc*, struct proc*);
+
+void mlfqprint(void);
 int
 exec(char* path, char** argv)
 {
@@ -21,26 +31,24 @@ exec(char* path, char** argv)
   // TODO: 현재는 동작하지 않음
   // TODO: 현재 컨텍스트가 pgmaster가 아니면 trap 14 발생
   // TODO: 실행 중인 스레드를 process group master로 승격시키는 것이 가장 쉬울 듯
-  struct proc* pgmaster = curproc->pgroup_master;
-  cprintf("exec\n");
   pushcli();
-  // free_threads(pgmaster);
-  
-  cprintf("exec\n");
+  if (!is_pgroup_master(curproc))
+  {
+    change_sched(curproc->pgroup_master, curproc);
+  }
+  clear_threads_exec();
   popcli();
   begin_op();
   
-  cprintf("exec\n");
   if ((ip = namei(path)) == 0)
   {
     end_op();
-    cprintf("exec: fail\n");
     return -1;
   }
+  
   ilock(ip);
   pgdir = 0;
 
-  cprintf("exec\n");
   // Check ELF header
   if (readi(ip, (char*)&elf, 0, sizeof(elf)) != sizeof(elf))
     goto bad;
@@ -106,15 +114,15 @@ exec(char* path, char** argv)
   for (last = s = path; *s; s++)
     if (*s == '/')
       last = s + 1;
-  safestrcpy(pgmaster->name, last, sizeof(pgmaster->name));
+  safestrcpy(curproc->name, last, sizeof(curproc->name));
 
   // Commit to the user image.
-  oldpgdir         = pgmaster->pgdir;
-  pgmaster->pgdir   = pgdir;
-  pgmaster->sz      = sz;
-  pgmaster->tf->eip = elf.entry; // main
-  pgmaster->tf->esp = sp;
-  switchuvm(pgmaster);
+  oldpgdir         = curproc->pgdir;
+  curproc->pgdir   = pgdir;
+  curproc->sz      = sz;
+  curproc->tf->eip = elf.entry; // main
+  curproc->tf->esp = sp;
+  switchuvm(curproc);
   freevm(oldpgdir);
   return 0;
 

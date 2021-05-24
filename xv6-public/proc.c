@@ -94,13 +94,13 @@ myproc(void)
   return p;
 }
 
-static int
+static inline int
 is_pgroup_master(struct proc* p)
 {
   return p->pgroup_master == p;
 }
 
-static int
+static inline int
 is_pgroup_have_pid(struct proc* node, int pid)
 {
   if (node->pid == pid)
@@ -166,6 +166,9 @@ found:
   }
 
   RELEASE;
+
+  initlock(&p->pgroup_lock, "pgroup_lock");
+
 
   // Allocate kernel stack.
   if ((p->kstack = kalloc()) == 0)
@@ -244,7 +247,7 @@ growproc(int n)
 {
   uint sz;
   struct proc* pgmaster = myproc()->pgroup_master;
-
+  acquire(&pgmaster->pgroup_lock);
   sz = pgmaster->sz;
   if (n > 0)
   {
@@ -257,7 +260,9 @@ growproc(int n)
       return -1;
   }
   pgmaster->sz = sz;
-  switchuvm(pgmaster);
+  
+  // switchuvm(pgmaster);
+  release(&pgmaster->pgroup_lock);
   return 0;
 }
 
@@ -407,12 +412,45 @@ fork(void)
   return clone(args);
 }
 
+// 
+void
+clear_threads_exec(void)
+{
+  struct proc* curproc = myproc();
+  // struct proc* pgmaster = curproc->pgroup_master;
+
+  // pgmaster가 갖고 있던 파일들을 복사
+  // if (!is_pgroup_master(curproc))
+  // {
+  //   for (int i = 0; i < NOFILE; i++)
+  //     if (pgmaster->ofile[i])
+  //       curproc->ofile[i] = filedup(pgmaster->ofile[i]);
+  //   curproc->cwd = idup(pgmaster->cwd);
+  // }
+
+  // 자기자신을 제외한 모든 쓰레드를 exit
+  for (struct linked_list *pos = curproc->pgroup.next, *next = pos->next;
+      pos != &curproc->pgroup; pos = next, next = pos->next)
+  {
+    struct proc* p = container_of(pos, struct proc, pgroup);
+      for (int fd = 0; fd < NOFILE; fd++)
+      {
+        p->ofile[fd] = 0;
+      }
+    p->cwd = 0;
+  }
+
+  free_threads(curproc);
+  curproc->pgroup_master = curproc;
+}
+
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
 void
 exit(void)
 {
+  // TODO: exit 하면 동시에 모든 lwp들이 멈추게 해야함
   struct proc* pgmaster = myproc()->pgroup_master;
   struct proc* p;
   int fd;
@@ -461,6 +499,7 @@ exit(void)
        pos != &pgmaster->pgroup; pos = pos->next)
   {
     container_of(pos, struct proc, pgroup)->state = ZOMBIE;
+    wakeup1(pgmaster);
   }
 
   sched();
@@ -470,15 +509,10 @@ exit(void)
 void
 free_threads(struct proc* p)
 {
-  // p = p->pgroup_master;
-  cprintf("master: %p, myproc: %p\n", p->pgroup_master, p);
   for (struct linked_list *pos = p->pgroup.next, *next = pos->next;
        pos != &p->pgroup; pos = next, next = pos->next)
   {
-    cprintf("%p, %p\n", pos, &p->pgroup);
     struct proc* t = container_of(pos, struct proc, pgroup);
-    cprintf("t: %p, myproc: %p\n", t, myproc());
-    // cprintf("kfree: %p\n", t->kstack);
     kfree(t->kstack);
     t->kstack  = 0;
     t->pid     = 0;
@@ -493,7 +527,6 @@ free_threads(struct proc* p)
     t->pgroup_master          = 0;
     t->pgroup_current_execute = 0;
   }
-  cprintf("freethreads end\n");
 }
 
 // Wait for a child process to exit and return its pid.
@@ -528,7 +561,6 @@ wait(void)
         // free vm
         freevm(p->pgdir);
 
-        cprintf("wait\n");
         // free threads
         free_threads(p);
 
@@ -694,8 +726,18 @@ scheduler(void)
 
     schedidx = (int)stridetop(&masterscheduler);
 
+    // if (!p && !expired)
+    // {
+    //   mlfqprint();
+    //   strideprint(&mainstride);
+    //   strideprint(&masterscheduler);
+    //   panic("invalid scheduling!");
+    // }
+
+    // TODO: p가 0이고 expired가 0이 되는 상황 -> 비정상적임
+    // TODO: 이 상황 원인 파악하고 수정해야 함...
     // expired가 true일 때 스케줄러에서 p을 받아옴
-    if (expired || p->state != RUNNABLE || p->schedule.sched != schedidx)
+    if (!p || expired || p->state != RUNNABLE || p->schedule.sched != schedidx)
     {
       // update schedidx
       switch (schedidx)
@@ -974,19 +1016,32 @@ thread_create(thread_t* thread, void* (*start_routine)(void*), void* arg)
 void
 thread_exit(void* retval)
 {
-  acquire(&ptable.lock);
   struct proc* curproc = myproc();
+
+  // for (int fd = 0; fd < NOFILE; fd++)
+  // {
+  //   if (curproc->ofile[fd])
+  //   {
+  //     curproc->ofile[fd] = 0;
+  //   }
+  // }
+
+  // curproc->cwd = 0;
 
   for (int fd = 0; fd < NOFILE; fd++)
   {
     if (curproc->ofile[fd])
     {
+      // fileclose(curproc->ofile[fd]);
       curproc->ofile[fd] = 0;
     }
   }
+  // begin_op();
+  // iput(curproc->cwd);
+  // end_op();
 
   curproc->cwd = 0;
-
+  acquire(&ptable.lock);
   curproc->retval = retval;
   curproc->state  = ZOMBIE;
   wakeup1((void*)curproc->pid);
