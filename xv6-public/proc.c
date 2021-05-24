@@ -151,11 +151,12 @@ found:
   p->state = EMBRYO;
   p->pid   = nextpid++;
 
-  p->pgroup_current_execute = p;
+  p->pgroup_current_execute = (mode & CLONE_THREAD) ? (struct proc*)0xdeadbbbb : p;
   p->pgroup_master = (mode & CLONE_THREAD) ? myproc()->pgroup_master : p;
   p->pgid          = p->pgroup_master->pid;
   linked_list_init(&p->pgroup);
   linked_list_init(&p->stackbin);
+  linked_list_push_back(&p->pgroup, &p->pgroup_master->pgroup);
 
   // p가 pgroup_master일 경우 mlfq에 p 추가
   // 최대 process 개수 == mlfq level 0의 크기
@@ -296,8 +297,6 @@ clone(struct clone_args args)
     // TODO: lock 범위 수정 or linked_list를 thread-safe하게
 
     ACQUIRE;
-    linked_list_init(&np->pgroup);
-    linked_list_push_back(&np->pgroup, &pgmaster->pgroup);
 
     // np->pgdir == np->pgdir
     np->pgdir = pgmaster->pgdir;
@@ -359,9 +358,6 @@ clone(struct clone_args args)
   }
   else
   {
-    // init는 thread-safe함
-    linked_list_init(&np->pgroup);
-
     // Copy process state from proc.
     if ((np->pgdir = copyuvm(pgmaster->pgdir, pgmaster->sz)) == 0)
     {
@@ -406,9 +402,9 @@ int
 fork(void)
 {
   struct clone_args args = { .mode          = CLONE_NONE,
-                             .args          = 0,
-                             .start_routine = 0,
-                             .lock          = &ptable.lock };
+                              .args          = 0,
+                              .start_routine = 0,
+                              .lock          = &ptable.lock };
   return clone(args);
 }
 
@@ -1124,6 +1120,9 @@ ps()
       cprintf("%d\t%d\t%s\t%s\n", p->pgid, p->pid, text[p->state], p->name);
     }
   }
+
+  mlfqprint();
+  strideprint(&mainstride);
 
   return 0;
 }

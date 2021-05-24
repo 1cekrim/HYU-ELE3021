@@ -71,6 +71,7 @@ struct stridescheduler masterscheduler;
   {                                                          \
     if (flag)                                                \
     {                                                        \
+      mlfqprint();                                           \
       report_message(__FILE__, __func__, __LINE__, message); \
     }                                                        \
   } while (0)
@@ -119,7 +120,8 @@ pqtop(struct priorityqueue* pq)
 struct proc*
 get_runnable(struct proc* p)
 {
-  for (struct linked_list* pos = p->pgroup.next; pos != &p->pgroup; pos = pos->next)
+  for (struct linked_list* pos = p->pgroup.next; pos != &p->pgroup;
+       pos                     = pos->next)
   {
     if (container_of(pos, struct proc, pgroup)->state == RUNNABLE)
     {
@@ -134,7 +136,9 @@ get_runnable(struct proc* p)
   return 0;
 }
 
-void change_sched(struct proc* before, struct proc* after){
+void
+change_sched(struct proc* before, struct proc* after)
+{
   if (before->schedule.sched == SCHEDMLFQ)
   {
     // mlfq
@@ -158,8 +162,8 @@ void change_sched(struct proc* before, struct proc* after){
       }
     }
   }
-} 
-
+  after->pgroup_current_execute = after;
+}
 
 void
 pqshiftup(struct priorityqueue* pq, int index)
@@ -244,7 +248,7 @@ mlfqprint()
             mlfq.q[level].front, mlfq.q[level].qsize);
     for (int j = 1; j <= mlfq.q[level].qsize; ++j)
     {
-      cprintf(" %p(%d)",
+      cprintf(" %d(%d)",
               mlfq.q[level]
                   .q[(mlfq.q[level].front + j) % mlfq.q[level].capacity]
                   ->pid,
@@ -464,12 +468,13 @@ isexhaustedprocess(struct proc* p)
   if (p->schedule.sched == SCHEDMLFQ)
   {
     return (sys_uptime() - p->schedule.lastscheduledtick) >=
-               mlfq.quantum[p->schedule.level];
+           mlfq.quantum[p->schedule.level];
   }
   else
   {
     // TODO: stride quantum을 option에서 선택할 수 있는 상수로
-    // cprintf("%d: %d\n", (sys_uptime() - p->schedule.lastscheduledtick), (sys_uptime() - p->schedule.lastscheduledtick) >= 5);
+    // cprintf("%d: %d\n", (sys_uptime() - p->schedule.lastscheduledtick),
+    // (sys_uptime() - p->schedule.lastscheduledtick) >= 5);
     return (sys_uptime() - p->schedule.lastscheduledtick) >= 5;
   }
 
