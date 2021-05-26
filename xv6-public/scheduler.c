@@ -272,7 +272,7 @@ mlfqinit()
 {
   static int quantum[NLEVEL]       = { 5, 10, 20 };
   static int allotment[NLEVEL - 1] = { 20, 40 };
-  static int boostingperiod        = 100;
+  static int boostingperiod        = 200;
 
   memset(&mlfq, 0, sizeof(mlfq));
   memmove(mlfq.quantum, quantum, NLEVEL * sizeof(int));
