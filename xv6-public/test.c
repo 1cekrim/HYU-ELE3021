@@ -8,7 +8,10 @@
   X("50 : 50 test", "test_scheduler", "2")     \
   X("80 : 20 test", "test_scheduler", "3")     \
   X("mlfq level", "test_scheduler", "4")       \
-  X("mlfq yield", "test_scheduler", "5")
+  X("mlfq yield", "test_scheduler", "5")       \
+  X("thread test", "test_thread2", "0")        \
+  X("thread test", "test_thread2", "0")        \
+  X("thread test", "test_thread2", "0")
 
 struct test
 {
