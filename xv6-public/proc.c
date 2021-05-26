@@ -156,7 +156,10 @@ found:
   p->pgid          = p->pgroup_master->pid;
   linked_list_init(&p->pgroup);
   linked_list_init(&p->stackbin);
-  linked_list_push_back(&p->pgroup, &p->pgroup_master->pgroup);
+  if (mode & CLONE_THREAD)
+  {
+    linked_list_push_back(&p->pgroup, &p->pgroup_master->pgroup);
+  } 
 
   // p가 pgroup_master일 경우 mlfq에 p 추가
   // 최대 process 개수 == mlfq level 0의 크기
@@ -298,14 +301,12 @@ clone(struct clone_args args)
 
     ACQUIRE;
 
-    // np->pgdir == np->pgdir
+    // page directory를 공유함
+    // type(pgdir): struct pde_t*
+    // 단순 값 복사로도 같은 객체를 공유하게 할 수 있음
     np->pgdir = pgmaster->pgdir;
 
     // alloc stack
-    // TODO: 스레드에서 stack 늘리면 어떻게 됨??
-    // TODO: 스레드가 exit 된 다음에 해당 영역 재사용 필요
-    // np->sz = allocuvm(pgmaster->pgdir, pgmaster->sz, pgmaster->sz + 2 *
-    // PGSIZE);
     np->sz =
         allocpageuvm(pgmaster->pgdir, &pgmaster->stackbin, pgmaster->sz, 2);
     if (!np->sz)
@@ -348,7 +349,7 @@ clone(struct clone_args args)
     np->tf->esp -= sizeof(void*);
     *((uint*)np->tf->esp) = (uint)arg;
     np->tf->esp -= sizeof(void*);
-    *((uint*)np->tf->esp) = 0xdeafbeef;
+    *((uint*)np->tf->esp) = 0xdeadbeef;
     RELEASE;
 
     for (i = 0; i < NOFILE; i++)
@@ -446,8 +447,10 @@ clear_threads_exec(void)
 void
 exit(void)
 {
-  // TODO: exit 하면 동시에 모든 lwp들이 멈추게 해야함
   struct proc* pgmaster = myproc()->pgroup_master;
+  // file stream: pgroup 내에서만 공유되는 자원
+  // 따라서 ptable lock이 아닌 pgroup_lock으로도 충분하다
+  acquire(&pgmaster->pgroup_lock);
   struct proc* p;
   int fd;
 
@@ -469,7 +472,9 @@ exit(void)
   end_op();
   pgmaster->cwd = 0;
 
+  // release - acquire 사이에 다른 스레드가 실행되는 것을 방지
   acquire(&ptable.lock);
+  release(&pgmaster->pgroup_lock);
 
   // Parent might be sleeping in wait().
   wakeup1(pgmaster->parent);
@@ -495,7 +500,6 @@ exit(void)
        pos != &pgmaster->pgroup; pos = pos->next)
   {
     container_of(pos, struct proc, pgroup)->state = ZOMBIE;
-    wakeup1(pgmaster);
   }
 
   sched();
@@ -730,8 +734,10 @@ scheduler(void)
     //   panic("invalid scheduling!");
     // }
 
-    // TODO: p가 0이고 expired가 0이 되는 상황 -> 비정상적임
-    // TODO: 이 상황 원인 파악하고 수정해야 함...
+    if (!p && !expired)
+    {
+      panic("invalid p expired");
+    }
     // expired가 true일 때 스케줄러에서 p을 받아옴
     if (!p || expired || p->state != RUNNABLE || p->schedule.sched != schedidx)
     {
