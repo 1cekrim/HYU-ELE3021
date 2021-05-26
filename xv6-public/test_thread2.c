@@ -317,6 +317,7 @@ exitthreadmain(void *arg)
       for (i = 0; i < 5000000; i++);
     }
   } else if ((int)arg == 2){
+    exit();
   }
   thread_exit(0);
 
