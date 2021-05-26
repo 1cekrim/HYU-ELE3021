@@ -424,7 +424,7 @@ int
 mlfqnext(struct proc* p, uint start, uint end)
 {
   static uint nextboostingtick;
-  if (is_killed(p) || !isvalidstateproc(p))
+  if (!isvalidstateproc(p))
   {
     return 1;
   }
@@ -464,7 +464,7 @@ mlfqnext(struct proc* p, uint start, uint end)
 int
 isexhaustedprocess(struct proc* p)
 {
-  if (is_killed(p) || !isvalidstateproc(p))
+  if (!isvalidstateproc(p))
   {
     return 1;
   }
