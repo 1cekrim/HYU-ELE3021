@@ -617,27 +617,6 @@ swtch_pgroup(struct proc* old_lwp, struct proc* new_lwp)
   mycpu()->intena = intena;
 }
 
-// pgroup 멤버들 대상으로 rr
-// struct proc*
-// pgroup_scheduler(struct proc* pgmaster)
-// {
-//   struct proc* selected = myproc();
-//   struct proc* new_selected =
-//       container_of(selected->pgroup.next, struct proc, pgroup);
-
-//   while (selected != new_selected)
-//   {
-//     if (new_selected->state == RUNNABLE)
-//     {
-//       return new_selected;
-//     }
-//     new_selected = container_of(new_selected->pgroup.next, struct proc,
-//     pgroup);
-//   }
-
-//   return new_selected->state == RUNNABLE ? new_selected : 0;
-// }
-
 // timer interrupt시 호출됨
 void
 pgroup_irq_trap(void)
@@ -669,6 +648,7 @@ pgroup_sched(void)
   // pgroup에 runnable한 프로세스가 없을 경우
   if (!target)
   {
+    pgmaster->schedule.yield = 1;
     sched();
     return;
   }
