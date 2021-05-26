@@ -447,10 +447,20 @@ clear_threads_exec(void)
 void
 exit(void)
 {
-  struct proc* pgmaster = myproc()->pgroup_master;
+  struct proc* curproc = myproc();
+  struct proc* pgmaster = curproc->pgroup_master;
+  if (!is_pgroup_master(curproc))
+  {
+    acquire(&ptable.lock);
+    set_killed(pgmaster, 1);
+    pgmaster->state = RUNNABLE;
+    curproc->chan  = (void*)-1;
+    curproc->state = SLEEPING;
+    pgroup_sched();
+    panic("exit pgroup sched");
+  }
   // file stream: pgroup 내에서만 공유되는 자원
   // 따라서 ptable lock이 아닌 pgroup_lock으로도 충분하다
-  acquire(&pgmaster->pgroup_lock);
   struct proc* p;
   int fd;
 
@@ -474,7 +484,6 @@ exit(void)
 
   // release - acquire 사이에 다른 스레드가 실행되는 것을 방지
   acquire(&ptable.lock);
-  release(&pgmaster->pgroup_lock);
 
   // Parent might be sleeping in wait().
   wakeup1(pgmaster->parent);
@@ -658,7 +667,6 @@ pgroup_sched(void)
   struct proc* pgmaster = curproc->pgroup_master;
   // dump_pgroup(curproc);
   // single thread이거나, time quantum을 넘어 scheduling이 필요할 경우
-
   if (linked_list_is_empty(&pgmaster->pgroup) || isexhaustedprocess(pgmaster))
   {
     pgmaster->schedule.yield = 1;
@@ -725,14 +733,6 @@ scheduler(void)
     acquire(&ptable.lock);
 
     schedidx = (int)stridetop(&masterscheduler);
-
-    // if (!p && !expired)
-    // {
-    //   mlfqprint();
-    //   strideprint(&mainstride);
-    //   strideprint(&masterscheduler);
-    //   panic("invalid scheduling!");
-    // }
 
     if (!p && !expired)
     {
@@ -1103,6 +1103,13 @@ found:
       release(&ptable.lock);
       return 0;
     }
+
+    if (is_killed(curproc))
+    {
+      release(&ptable.lock);
+      return -1;
+    }
+
     sleep((void*)thread, &ptable.lock);
   }
 }
