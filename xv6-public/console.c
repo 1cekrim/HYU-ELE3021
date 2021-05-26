@@ -202,7 +202,7 @@ struct
 } input;
 
 #define C(x) ((x) - '@') // Control-x
-
+void ps(void);
 void
 consoleintr(int (*getc)(void))
 {
@@ -250,7 +250,7 @@ consoleintr(int (*getc)(void))
   release(&cons.lock);
   if (doprocdump)
   {
-    procdump(); // now call procdump() wo. cons.lock held
+    ps(); // now call procdump() wo. cons.lock held
   }
 }
 
