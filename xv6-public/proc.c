@@ -409,21 +409,10 @@ fork(void)
   return clone(args);
 }
 
-// 
 void
 clear_threads_exec(void)
 {
   struct proc* curproc = myproc();
-  // struct proc* pgmaster = curproc->pgroup_master;
-
-  // pgmaster가 갖고 있던 파일들을 복사
-  // if (!is_pgroup_master(curproc))
-  // {
-  //   for (int i = 0; i < NOFILE; i++)
-  //     if (pgmaster->ofile[i])
-  //       curproc->ofile[i] = filedup(pgmaster->ofile[i]);
-  //   curproc->cwd = idup(pgmaster->cwd);
-  // }
 
   // 자기자신을 제외한 모든 쓰레드를 exit
   for (struct linked_list *pos = curproc->pgroup.next, *next = pos->next;
