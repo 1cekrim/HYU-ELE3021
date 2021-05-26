@@ -62,6 +62,7 @@ void pqprint(struct priorityqueue* pq);
 int set_cpu_share(struct proc* p, int usage);
 void report_message(char* filename, const char* signature, int line,
                     char* message);
+void ps(void);
 
 struct stridescheduler mainstride;
 struct stridescheduler masterscheduler;
@@ -71,7 +72,7 @@ struct stridescheduler masterscheduler;
   {                                                          \
     if (flag)                                                \
     {                                                        \
-      mlfqprint();                                           \
+      ps();                                                  \
       report_message(__FILE__, __func__, __LINE__, message); \
     }                                                        \
   } while (0)
@@ -83,6 +84,11 @@ report_message(char* filename, const char* signature, int line, char* message)
   cprintf("  File \"%s\", line %d, in %s\n", filename, line, signature);
   cprintf("MESSAGE: %s\n", message);
   panic("assert");
+}
+
+int isvalidstateproc(struct proc* p)
+{
+  return p->state == SLEEPING || p->state == RUNNABLE || p->state == RUNNING;
 }
 
 int
@@ -418,7 +424,7 @@ int
 mlfqnext(struct proc* p, uint start, uint end)
 {
   static uint nextboostingtick;
-  if (is_killed(p) || p->state == ZOMBIE)
+  if (is_killed(p) || !isvalidstateproc(p))
   {
     return 1;
   }
@@ -438,8 +444,7 @@ mlfqnext(struct proc* p, uint start, uint end)
     return 1;
   }
 
-  int result = (executiontick >= mlfq.quantum[level]) || p->schedule.yield ||
-               p->state == SLEEPING;
+  int result = (executiontick >= mlfq.quantum[level]) || p->schedule.yield || !get_runnable(p);
   if (result)
   {
     assert(mlfqrotatetotarget(level, p) == QFAILURE, "rotate failure");
@@ -459,7 +464,7 @@ mlfqnext(struct proc* p, uint start, uint end)
 int
 isexhaustedprocess(struct proc* p)
 {
-  if (is_killed(p) || p->state == ZOMBIE)
+  if (is_killed(p) || !isvalidstateproc(p))
   {
     return 1;
   }

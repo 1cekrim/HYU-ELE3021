@@ -45,33 +45,33 @@ volatile int gcnt;
 int gpipe[2];
 
 int (*testfunc[NTEST])(void) = {
+  killtest,
+  exittest1,
+  exittest2,
   racingtest,
   basictest,
   jointest1,
   jointest2,
   stresstest,
-  exittest1,
-  exittest2,
   forktest,
   exectest,
   sbrktest,
-  killtest,
   pipetest,
   sleeptest,
   stridetest,
 };
 char *testname[NTEST] = {
+  "killtest",
+  "exittest1",
+  "exittest2",
   "racingtest",
   "basictest",
   "jointest1",
   "jointest2",
   "stresstest",
-  "exittest1",
-  "exittest2",
   "forktest",
   "exectest",
   "sbrktest",
-  "killtest",
   "pipetest",
   "sleeptest",
   "stridetest",
@@ -317,6 +317,7 @@ exitthreadmain(void *arg)
       for (i = 0; i < 5000000; i++);
     }
   } else if ((int)arg == 2){
+    printf(1, "exited\n");
     exit();
   }
   thread_exit(0);
@@ -611,7 +612,8 @@ pipetest(void)
 void*
 sleepthreadmain(void *arg)
 {
-  sleep(1000000);
+  sleep(1000);
+  printf(1, "sleep exit");
   thread_exit(0);
 
   return 0;
