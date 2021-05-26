@@ -264,8 +264,7 @@ growproc(int n)
       return -1;
   }
   pgmaster->sz = sz;
-  
-  // switchuvm(pgmaster);
+
   release(&pgmaster->pgroup_lock);
   return 0;
 }
