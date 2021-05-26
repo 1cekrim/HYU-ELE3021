@@ -28,9 +28,7 @@ exec(char* path, char** argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc* curproc = myproc();
-  // TODO: 현재는 동작하지 않음
-  // TODO: 현재 컨텍스트가 pgmaster가 아니면 trap 14 발생
-  // TODO: 실행 중인 스레드를 process group master로 승격시키는 것이 가장 쉬울 듯
+
   pushcli();
   if (!is_pgroup_master(curproc))
   {
@@ -39,7 +37,11 @@ exec(char* path, char** argv)
   clear_threads_exec();
   popcli();
   begin_op();
-  
+
+  curproc->pid = curproc->pgid;
+  linked_list_init(&curproc->pgroup);
+  linked_list_init(&curproc->stackbin);
+
   if ((ip = namei(path)) == 0)
   {
     end_op();
