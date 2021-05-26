@@ -238,7 +238,6 @@ allocpageuvm(pde_t* pgdir, struct linked_list* head, uint sz, uint pagecnt)
 {
   if (linked_list_is_empty(head))
   {
-    // cprintf("allocuvm\n");
     return allocuvm(pgdir, sz, sz + pagecnt * PGSIZE);
   }
 
@@ -284,23 +283,15 @@ allocpageuvm(pde_t* pgdir, struct linked_list* head, uint sz, uint pagecnt)
 int
 freepageuvm(pde_t* pgdir, struct linked_list* head, uint sz, uint pagecnt)
 {
-  // TODO: pgdir 해당 페이지를 지우는 것이 안전한가?
-  
   uint a = PGROUNDUP(sz);
   pte_t* pte = walkpgdir(pgdir, (char*)a, 0);
+  
   struct stackbin_header* header = P2V(PTE_ADDR(*pte));
   header->magic = stackbin_magic;
   header->pagecnt = pagecnt;
   header->sz = sz;
-  // cprintf("free (%p, %d, %d)\n", header, header->sz, header->pagecnt);
   linked_list_init(&header->list);
   linked_list_push_back(&header->list, head);
-  // for (struct linked_list* pos = head->next; pos != head;
-  //      pos                     = pos->next)
-  // {
-  //   cprintf("(%x, %p), ", container_of(pos, struct stackbin_header, list)->magic, pos);
-  // }
-  // cprintf("\n");
 
   return 0;
 }
