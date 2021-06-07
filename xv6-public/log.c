@@ -259,5 +259,5 @@ int sync(void)
 
 int get_log_num(void)
 {
-  return -1;
+  return log.lh.n;
 }
