@@ -249,3 +249,15 @@ log_write(struct buf* b)
   b->flags |= B_DIRTY; // prevent eviction
   release(&log.lock);
 }
+
+
+
+int sync(void)
+{
+  return -1;
+}
+
+int get_log_num(void)
+{
+  return -1;
+}

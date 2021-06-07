@@ -28,3 +28,5 @@
 #define SYS_thread_join   27
 #define SYS_gettid        28
 #define SYS_ps            29
+#define SYS_sync          29
+#define SYS_get_log_num   29

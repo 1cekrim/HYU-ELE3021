@@ -169,3 +169,17 @@ sys_ps(void)
 {
   return ps();
 }
+
+extern int sync(void);
+int
+sys_sync(void)
+{
+  return sync();
+}
+
+extern int get_log_num(void);
+int
+sys_get_log_num(void)
+{
+  return get_log_num();
+}
