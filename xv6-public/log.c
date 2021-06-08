@@ -44,6 +44,7 @@ struct log
   int size;
   int outstanding; // how many FS sys calls are executing.
   int committing;  // in commit(), please wait.
+  int sync_requested;
   int dev;
   struct logheader lh;
 };
@@ -51,6 +52,7 @@ struct log log;
 
 static void recover_from_log(void);
 static void commit();
+int sync_request();
 
 void
 initlog(int dev)
@@ -133,14 +135,18 @@ begin_op(void)
   acquire(&log.lock);
   while (1)
   {
-    if (log.committing)
+    if (log.committing || log.sync_requested)
     {
       sleep(&log, &log.lock);
     }
     else if (log.lh.n + (log.outstanding + 1) * MAXOPBLOCKS > LOGSIZE)
     {
       // this op might exhaust log space; wait for commit.
-      sleep(&log, &log.lock);
+      sync_request();
+      if (log.outstanding != 0)
+      {
+        sleep(&log, &log.lock);
+      }
     }
     else
     {
@@ -162,7 +168,7 @@ end_op(void)
   log.outstanding -= 1;
   if (log.committing)
     panic("log.committing");
-  if (log.outstanding == 0)
+  if (log.outstanding == 0 && log.sync_requested)
   {
     do_commit      = 1;
     log.committing = 1;
@@ -183,6 +189,7 @@ end_op(void)
     commit();
     acquire(&log.lock);
     log.committing = 0;
+    log.sync_requested = 0;
     wakeup(&log);
     release(&log.lock);
   }
@@ -250,11 +257,34 @@ log_write(struct buf* b)
   release(&log.lock);
 }
 
-
+int sync_request(void)
+{
+  if (!log.sync_requested)
+  {
+    if (log.outstanding > 0)
+    {
+      log.sync_requested = 1;
+    }
+    else
+    {
+      release(&log.lock);
+      commit();
+      acquire(&log.lock);
+      log.committing = 0;
+      log.sync_requested = 0;
+      wakeup(&log);
+      return 0;
+    }
+  }
+  return 0;
+} 
 
 int sync(void)
 {
-  return -1;
+  acquire(&log.lock);
+  int ret = sync_request();
+  release(&log.lock);
+  return ret;
 }
 
 int get_log_num(void)
