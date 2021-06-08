@@ -19,16 +19,13 @@ main(int argc, char* argv[])
         path[8] += 1;
         int fd = open(path, O_CREATE | O_RDWR);
 
-        for (int j = 0; j < 20; j++)
+        for (int j = 0; j < 30; j++)
         {
             write(fd, data, sizeof(data));
             printf(1, "log_num: %d (%d, %d)\n", get_log_num(), i, j);
         }
-        sync();
-        // printf(1, "log_num: %d\n", get_log_num());
 
         close(fd);
-        printf(1, "%d\n", get_log_num());
     }
 
     exit();
