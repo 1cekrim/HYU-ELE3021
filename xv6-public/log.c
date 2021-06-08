@@ -289,5 +289,8 @@ int sync(void)
 
 int get_log_num(void)
 {
-  return log.lh.n;
+  acquire(&log.lock);
+  int ret = log.lh.n;
+  release(&log.lock);
+  return ret;
 }
