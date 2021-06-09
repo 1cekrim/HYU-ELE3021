@@ -24,7 +24,7 @@ main(int argc, char* argv[])
             write(fd, data, sizeof(data));
             printf(1, "log_num: %d (%d, %d)\n", get_log_num(), i, j);
         }
-
+        sync();
         close(fd);
     }
 

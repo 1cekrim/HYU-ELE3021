@@ -143,10 +143,6 @@ begin_op(void)
     {
       // this op might exhaust log space; wait for commit.
       sync_request();
-      if (log.outstanding != 0)
-      {
-        sleep(&log, &log.lock);
-      }
     }
     else
     {
@@ -264,6 +260,10 @@ int sync_request(void)
     if (log.outstanding > 0)
     {
       log.sync_requested = 1;
+      if (log.outstanding != 0)
+      {
+        sleep(&log, &log.lock);
+      }
     }
     else
     {
@@ -293,4 +293,4 @@ int get_log_num(void)
   int ret = log.lh.n;
   release(&log.lock);
   return ret;
-}
+} 
