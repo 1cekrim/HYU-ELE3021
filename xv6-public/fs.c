@@ -371,6 +371,21 @@ iunlockput(struct inode* ip)
   iput(ip);
 }
 
+// 새 페이지를 balloc 받고, indirect pointer가 가리키는 테이블의 index 위치에 넣음
+static uint
+bmap_alloc(struct inode* ip, uint addr, uint index)
+{
+  struct buf* bp = bread(ip->dev, addr);
+  uint* a = (uint*)bp->data;
+  if ((addr = a[index]) == 0)
+  {
+    a[index] = addr = balloc(ip->dev);
+    log_write(bp);
+  }
+  brelse(bp);
+  return addr;
+}
+
 // PAGEBREAK!
 // Inode content
 //
@@ -384,8 +399,7 @@ iunlockput(struct inode* ip)
 static uint
 bmap(struct inode* ip, uint bn)
 {
-  uint addr, *a;
-  struct buf* bp;
+  uint addr;
 
   if (bn < NDIRECT)
   {
@@ -400,19 +414,78 @@ bmap(struct inode* ip, uint bn)
     // Load indirect block, allocating if necessary.
     if ((addr = ip->addrs[NDIRECT]) == 0)
       ip->addrs[NDIRECT] = addr = balloc(ip->dev);
-    bp = bread(ip->dev, addr);
-    a  = (uint*)bp->data;
-    if ((addr = a[bn]) == 0)
-    {
-      a[bn] = addr = balloc(ip->dev);
-      log_write(bp);
-    }
-    brelse(bp);
+    
+    // Indirect Data Block
+    addr = bmap_alloc(ip, addr, bn);
+    return addr;
+  }
+
+  // bn이 doubly indirect 범위 내에 있을 경우
+  if (bn < NINDIRECT2)
+  {
+    if ((addr = ip->addrs[NDIRECT + 1]) == 0)
+      ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);
+
+    // Blocks of Pointers
+    addr = bmap_alloc(ip, addr, bn / NINDIRECT);
+    // Double Indirect Data Block
+    addr = bmap_alloc(ip, addr, bn % NINDIRECT);
+    return addr;
+  }
+
+  // bn이 triple indirect 범위 내에 있을 경우
+  if (bn < NINDIRECT3)
+  {
+    if ((addr = ip->addrs[NDIRECT + 2]) == 0)
+      ip->addrs[NDIRECT + 2] = addr = balloc(ip->dev);
+
+    // Blocks of Pointers 1
+    addr = bmap_alloc(ip, addr, bn / NINDIRECT2);
+    bn %= NINDIRECT2;
+
+    // Blocks of Pointers 2
+    addr = bmap_alloc(ip, addr, bn / NINDIRECT);
+    // Triple Indirect Data Block
+    addr = bmap_alloc(ip, addr, bn % NINDIRECT);
     return addr;
   }
 
   panic("bmap: out of range");
 }
+
+static void
+itrunc_free(struct inode* ip, uint addr, int depth)
+{
+  struct buf* bp = bread(ip->dev, addr);
+  uint* a = (uint*)bp->data;
+
+  // leaf
+  if (depth == 0)
+  {
+    for (int i = 0; i < NINDIRECT; ++i)
+    {
+      if (a[i])
+      {
+        bfree(ip->dev, a[i]);
+      }
+    }
+  }
+  else
+  {
+    for (int i = 0; i < NINDIRECT; ++i)
+    {
+      if (a[i])
+      {
+        itrunc_free(ip, a[i], depth - 1);
+        a[i] = 0;
+      }
+    }
+  }
+  
+  brelse(bp);
+  bfree(ip->dev, addr);
+}
+
 
 // Truncate inode (discard contents).
 // Only called when the inode has no links
@@ -422,9 +495,7 @@ bmap(struct inode* ip, uint bn)
 static void
 itrunc(struct inode* ip)
 {
-  int i, j;
-  struct buf* bp;
-  uint* a;
+  int i;
 
   for (i = 0; i < NDIRECT; i++)
   {
@@ -435,18 +506,13 @@ itrunc(struct inode* ip)
     }
   }
 
-  if (ip->addrs[NDIRECT])
+  for (i = 0; i < 3; ++i)
   {
-    bp = bread(ip->dev, ip->addrs[NDIRECT]);
-    a  = (uint*)bp->data;
-    for (j = 0; j < NINDIRECT; j++)
+    if (ip->addrs[NDIRECT + i])
     {
-      if (a[j])
-        bfree(ip->dev, a[j]);
+      itrunc_free(ip, ip->addrs[NDIRECT + i], i);
+      ip->addrs[NDIRECT + i] = 0;
     }
-    brelse(bp);
-    bfree(ip->dev, ip->addrs[NDIRECT]);
-    ip->addrs[NDIRECT] = 0;
   }
 
   ip->size = 0;
