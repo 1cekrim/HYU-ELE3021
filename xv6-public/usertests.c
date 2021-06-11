@@ -218,6 +218,9 @@ writetest1(void)
 {
   int i, fd, n;
 
+  // 4 MB
+  int filesize = 1024 * 1024 * 16 / BSIZE;
+
   printf(stdout, "big files test\n");
 
   fd = open("big", O_CREATE | O_RDWR);
@@ -227,7 +230,7 @@ writetest1(void)
     exit();
   }
 
-  for (i = 0; i < MAXFILE; i++)
+  for (i = 0; i < filesize; i++)
   {
     ((int*)buf)[0] = i;
     if (write(fd, buf, 512) != 512)
@@ -238,6 +241,15 @@ writetest1(void)
   }
 
   close(fd);
+
+  // file info test
+  struct stat st;
+  stat("big", &st);
+  if (st.size != filesize * BSIZE)
+  {
+    printf(stdout, "error: big file size failed. (%d != %d)\n", st.size, filesize * BSIZE);
+    exit();
+  }
 
   fd = open("big", O_RDONLY);
   if (fd < 0)
@@ -252,7 +264,7 @@ writetest1(void)
     i = read(fd, buf, 512);
     if (i == 0)
     {
-      if (n == MAXFILE - 1)
+      if (n == filesize - 1)
       {
         printf(stdout, "read only %d blocks from big", n);
         exit();
