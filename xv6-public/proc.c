@@ -256,12 +256,18 @@ growproc(int n)
   if (n > 0)
   {
     if ((sz = allocuvm(pgmaster->pgdir, sz, sz + n)) == 0)
+    {
+      release(&pgmaster->pgroup_lock);
       return -1;
+    }
   }
   else if (n < 0)
   {
     if ((sz = deallocuvm(pgmaster->pgdir, sz, sz + n)) == 0)
+    {
+      release(&pgmaster->pgroup_lock);
       return -1;
+    }
   }
   pgmaster->sz = sz;
 
