@@ -218,7 +218,7 @@ writetest1(void)
 {
   int i, fd, n;
 
-  // 4 MB
+  // 8 MB
   int filesize = 1024 * 1024 * 16 / BSIZE;
 
   printf(stdout, "big files test\n");

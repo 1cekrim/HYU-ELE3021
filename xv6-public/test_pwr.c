@@ -43,7 +43,7 @@ main(int argc, char* argv[])
     int a;
     pread(fd, &a, sizeof(a), i * sizeof(int));
     printf(1, "%d ", a);
-    if (i % 10 == 0)
+    if ((i + 1) % 10 == 0)
         printf(1, "\n");
     if (i % 3 == 0 && a != -1)
     {
@@ -63,6 +63,12 @@ main(int argc, char* argv[])
 
   fd = open("pwrtest", O_CREATE | O_RDWR);
   int c = -1;
+  if (write(fd, &c, sizeof(c)) == -1)
+  {
+    printf(1, "write failure\n");
+    exit();
+  }
+  c = -2;
   if (pwrite(fd, &c, sizeof(c), (DATASIZE - 1) * sizeof(int)) == -1)
   {
     printf(1, "pwrite failure\n");
@@ -74,14 +80,19 @@ main(int argc, char* argv[])
     int a;
     pread(fd, &a, sizeof(a), i * sizeof(int));
     printf(1, "%d ", a);
-    if (i % 10 == 0)
+    if ((i + 1) % 10 == 0)
         printf(1, "\n");
-    if (i == DATASIZE - 1 && a != -1)
+    if (i == 0 && a != -1)
     {
       printf(1, "invalid read(%d): %d != %d\n", i, -1, a);
       exit();
     }
-    else if (i < DATASIZE - 1 && a != 0)
+    else if (i == DATASIZE - 1 && a != -2)
+    {
+      printf(1, "invalid read(%d): %d != %d\n", i, -2, a);
+      exit();
+    }
+    else if (i > 0 && i < DATASIZE - 1 && a != 0)
     {
       printf(1, "invalid read(%d): %d != %d\n", i, 0, a);
       exit();
