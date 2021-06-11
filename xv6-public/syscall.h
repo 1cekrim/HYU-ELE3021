@@ -30,3 +30,5 @@
 #define SYS_ps            29
 #define SYS_sync          30
 #define SYS_get_log_num   31
+#define SYS_pwrite        32
+#define SYS_pread         33

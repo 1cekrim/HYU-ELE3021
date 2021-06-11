@@ -36,6 +36,8 @@ int thread_join(thread_t, void**);
 int ps();
 int sync();
 int get_log_num();
+int pwrite(int, const void*, int, int);
+int pread(int, void*, int, int);
 
 // ulib.c
 int stat(const char*, struct stat*);
